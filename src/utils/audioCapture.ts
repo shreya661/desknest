@@ -8,6 +8,27 @@ export interface AudioConstraintsConfig {
   echoCancellation: boolean;
   noiseSuppression: boolean;
   autoGainControl: boolean;
+  deviceId?: string;
+}
+
+export interface AudioDeviceOption {
+  deviceId: string;
+  label: string;
+  groupId?: string;
+}
+
+export interface AudioSignalMetrics {
+  volume: number; // 0 to 100
+  peak: number; // 0 to 1
+  isQuiet: boolean; // < 15%
+  isClipping: boolean; // > 90%
+  isOptimal: boolean; // 15% - 85%
+}
+
+export interface TranscriptionSegment {
+  timestamp?: string; // "[00:05]"
+  speaker?: string; // "Speaker 1"
+  text: string;
 }
 
 export const DEFAULT_AUDIO_CONSTRAINTS: AudioConstraintsConfig = {
@@ -24,15 +45,116 @@ export const DEFAULT_MIC_BOOST = 1.2;
  * Returns MediaStreamConstraints with enhanced hardware audio capture settings.
  */
 export function getEnhancedAudioConstraints(
-  config: AudioConstraintsConfig = DEFAULT_AUDIO_CONSTRAINTS
+  config: AudioConstraintsConfig = DEFAULT_AUDIO_CONSTRAINTS,
+  deviceId?: string
 ): MediaStreamConstraints {
-  return {
-    audio: {
-      echoCancellation: config.echoCancellation,
-      noiseSuppression: config.noiseSuppression,
-      autoGainControl: config.autoGainControl,
-    },
+  const targetDeviceId = deviceId || config.deviceId;
+  const audioConstraints: MediaTrackConstraints = {
+    echoCancellation: config.echoCancellation,
+    noiseSuppression: config.noiseSuppression,
+    autoGainControl: config.autoGainControl,
   };
+
+  if (targetDeviceId) {
+    audioConstraints.deviceId = { exact: targetDeviceId };
+  }
+
+  return {
+    audio: audioConstraints,
+  };
+}
+
+/**
+ * Enumerates available audio input devices (microphones/headsets).
+ */
+export async function getAvailableAudioInputDevices(): Promise<AudioDeviceOption[]> {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.enumerateDevices
+  ) {
+    return [];
+  }
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter((d) => d.kind === "audioinput");
+
+    return audioInputs.map((device, index) => ({
+      deviceId: device.deviceId,
+      label: device.label || `Microphone ${index + 1}`,
+      groupId: device.groupId,
+    }));
+  } catch (err) {
+    console.warn("Could not enumerate audio devices:", err);
+    return [];
+  }
+}
+
+/**
+ * Computes RMS volume and peak distortion metrics from raw time-domain audio data (Uint8Array, centered around 128).
+ */
+export function calculateAudioSignalMetrics(dataArray: Uint8Array): AudioSignalMetrics {
+  if (!dataArray || dataArray.length === 0) {
+    return { volume: 0, peak: 0, isQuiet: true, isClipping: false, isOptimal: false };
+  }
+
+  let sumSquares = 0;
+  let peak = 0;
+
+  for (let i = 0; i < dataArray.length; i++) {
+    const normalized = Math.abs(dataArray[i] - 128) / 128;
+    sumSquares += normalized * normalized;
+    if (normalized > peak) {
+      peak = normalized;
+    }
+  }
+
+  const rms = Math.sqrt(sumSquares / dataArray.length);
+  // Scale RMS to 0 - 100 with perceptual sensitivity factor
+  const volume = Math.min(100, Math.round(rms * 100 * 2.8));
+
+  return {
+    volume,
+    peak,
+    isQuiet: volume < 15,
+    isClipping: peak >= 0.95 || volume >= 90,
+    isOptimal: volume >= 15 && volume < 90,
+  };
+}
+
+/**
+ * Formats seconds into standard timestamp: [mm:ss]
+ */
+export function formatDurationTimestamp(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `[${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}]`;
+}
+
+/**
+ * Formats transcription segments into clean, styled readable text.
+ */
+export function formatTranscript(
+  segments: TranscriptionSegment[],
+  options: { includeTimestamps?: boolean; includeSpeakers?: boolean } = {}
+): string {
+  if (!segments || segments.length === 0) return "";
+
+  return segments
+    .map((s) => {
+      const parts: string[] = [];
+      if (options.includeTimestamps && s.timestamp) {
+        parts.push(s.timestamp);
+      }
+      if (options.includeSpeakers && s.speaker) {
+        parts.push(`${s.speaker}:`);
+      }
+      parts.push(s.text.trim());
+      return parts.join(" ");
+    })
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**

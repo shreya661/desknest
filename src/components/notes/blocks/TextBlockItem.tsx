@@ -65,7 +65,6 @@ export const TextBlockItem: React.FC<TextBlockItemProps> = ({
     onFocus(id, e.target.selectionStart || 0);
     onCursorChange(e.target.selectionStart || 0, e.target.selectionEnd || 0);
   };
-  };
 
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const el = textareaRef.current;
