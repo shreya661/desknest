@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Ultra-refined Modern Light Theme ("Vibrant Glassmorphism & Soft Ambient Glow") */
+  --color-bg: #f5f7fb;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-hover: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-focus: #0284c7;
+
+  --color-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-fg: #64748b;
+
+  --color-primary: #0284c7;
+  --color-primary-hover: #0369a1;
+  --color-primary-fg: #ffffff;
+
+  --color-success: #10b981;
+  --color-success-fg: #ffffff;
+  --color-warning: #f59e0b;
+  --color-warning-fg: #ffffff;
+  --color-danger: #ef4444;
+  --color-danger-fg: #ffffff;
+
+  /* Sticky Note Palettes (Light) */
+  --note-amber-bg: #fffbeb;
+  --note-amber-border: #fef3c7;
+  --note-amber-accent: #d97706;
+
+  --note-lemon-bg: #fefce8;
+  --note-lemon-border: #fef08a;
+  --note-lemon-accent: #ca8a04;
+
+  --note-mint-bg: #f0fdf4;
+  --note-mint-border: #bbf7d0;
+  --note-mint-accent: #16a34a;
+
+  --note-sky-bg: #f0f9ff;
+  --note-sky-border: #bae6fd;
+  --note-sky-accent: #0284c7;
+
+  --note-lavender-bg: #faf5ff;
+  --note-lavender-border: #e9d5ff;
+  --note-lavender-accent: #9333ea;
+
+  --note-rose-bg: #fff1f2;
+  --note-rose-border: #fecdd3;
+  --note-rose-accent: #e11d48;
+
+  --note-slate-bg: #f8fafc;
+  --note-slate-border: #e2e8f0;
+  --note-slate-accent: #475569;
+}
+
+.dark {
+  /* Ultra-sleek Dark Obsidian Theme */
+  --color-bg: #0b0f19;
+  --color-surface: #111827;
+  --color-surface-elevated: #1a2234;
+  --color-surface-hover: #222d42;
+  --color-border: #232d3f;
+  --color-border-focus: #38bdf8;
+
+  --color-foreground: #f8fafc;
+  --color-muted: #1a2336;
+  --color-muted-fg: #94a3b8;
+
+  --color-primary: #38bdf8;
+  --color-primary-hover: #7dd3fc;
+  --color-primary-fg: #0b0f19;
+
+  --color-success: #34d399;
+  --color-success-fg: #064e3b;
+  --color-warning: #fbbf24;
+  --color-warning-fg: #78350f;
+  --color-danger: #f87171;
+  --color-danger-fg: #7f1d1d;
+
+  /* Sticky Note Palettes (Dark) */
+  --note-amber-bg: #22170a;
+  --note-amber-border: #4a3212;
+  --note-amber-accent: #f59e0b;
+
+  --note-lemon-bg: #21200b;
+  --note-lemon-border: #474212;
+  --note-lemon-accent: #facc15;
+
+  --note-mint-bg: #092017;
+  --note-mint-border: #13462f;
+  --note-mint-accent: #34d399;
+
+  --note-sky-bg: #0c1b2c;
+  --note-sky-border: #153957;
+  --note-sky-accent: #38bdf8;
+
+  --note-lavender-bg: #1c122b;
+  --note-lavender-border: #3b1f58;
+  --note-lavender-accent: #c084fc;
+
+  --note-rose-bg: #270f17;
+  --note-rose-border: #4d1828;
+  --note-rose-accent: #fb7185;
+
+  --note-slate-bg: #141a26;
+  --note-slate-border: #263248;
+  --note-slate-accent: #94a3b8;
+}
+
+/* Frameless Window Drag Region */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+button, input, textarea, select, [role="button"], a {
+  -webkit-app-region: no-drag;
+}
+
+/* Custom Minimalist Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-fg);
+}
+
+/* Glassmorphism & Visual Vibe utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .glass-panel {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+}
+
+.dark .glass-card {
+  background: rgba(17, 24, 39, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+}
+
+/* Ambient gradient background aura */
+.ambient-glow {
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(129, 140, 248, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(236, 72, 153, 0.05) 0px, transparent 50%);
+}
+
+.dark .ambient-glow {
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(129, 140, 248, 0.12) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
+}
