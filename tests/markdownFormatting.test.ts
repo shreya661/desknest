@@ -5,6 +5,8 @@ import {
   toggleHeading,
   cleanMarkdownSnippet,
   getTextColorClass,
+  toggleUnderline,
+  toggleHighlight,
 } from "../src/utils/markdownFormatting";
 
 describe("Markdown Formatting Utilities", () => {
@@ -219,6 +221,45 @@ Here is ==highlighted== text and [color:rose vibrant color].
     it("returns default text for empty content", () => {
       expect(cleanMarkdownSnippet("")).toBe("Empty note content...");
       expect(cleanMarkdownSnippet("   ")).toBe("Empty note content...");
+    });
+
+    it("strips underline <u> tags from snippets", () => {
+      const raw = "Here is <u>underlined information</u> in text.";
+      expect(cleanMarkdownSnippet(raw)).toBe("Here is underlined information in text.");
+    });
+  });
+
+  describe("6. Underline and Highlight Inline Toggles", () => {
+    it("wraps selection in <u> tags", () => {
+      const content = "Please review this";
+      const start = "Please ".length;
+      const end = content.length; // "review this"
+      const res = toggleUnderline(content, start, end);
+
+      expect(res.newContent).toBe("Please <u>review this</u>");
+    });
+
+    it("toggles off <u> tags when selected", () => {
+      const content = "Please <u>review this</u> now";
+      const start = "Please ".length;
+      const end = "Please <u>review this</u>".length;
+      const res = toggleUnderline(content, start, end);
+
+      expect(res.newContent).toBe("Please review this now");
+    });
+
+    it("wraps selection in == highlight markers", () => {
+      const content = "Critical notice";
+      const res = toggleHighlight(content, 0, content.length);
+
+      expect(res.newContent).toBe("==Critical notice==");
+    });
+
+    it("toggles off == highlight markers", () => {
+      const content = "==Critical notice==";
+      const res = toggleHighlight(content, 0, content.length);
+
+      expect(res.newContent).toBe("Critical notice");
     });
   });
 });

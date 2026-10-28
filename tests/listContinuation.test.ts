@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { handleEditorEnter } from "../src/utils/listContinuation";
+import {
+  handleEditorEnter,
+  handleEditorTab,
+  handleEditorBackspace,
+  renumberNumberedList,
+} from "../src/utils/listContinuation";
 
 describe("Smart List Continuation & Enter Handling", () => {
   describe("1. Numbered Lists", () => {
@@ -236,6 +241,97 @@ describe("Smart List Continuation & Enter Handling", () => {
 
       expect(result.isListContinuation).toBe(false);
       expect(result.newContent).toBe("---\n");
+    });
+  });
+
+  describe("8. Tab & Shift+Tab Indentation / Outdentation", () => {
+    it("indents a list item by 2 spaces on Tab", () => {
+      const content = "- List item";
+      const result = handleEditorTab(content, 0, 0, false);
+
+      expect(result.handled).toBe(true);
+      expect(result.newContent).toBe("  - List item");
+      expect(result.newStart).toBe(2);
+    });
+
+    it("outdents an indented list item on Shift+Tab", () => {
+      const content = "  - Indented item";
+      const result = handleEditorTab(content, 4, 4, true);
+
+      expect(result.handled).toBe(true);
+      expect(result.newContent).toBe("- Indented item");
+      expect(result.newStart).toBe(2);
+    });
+
+    it("indents multiple selected lines simultaneously", () => {
+      const content = "1. Item A\n2. Item B";
+      const result = handleEditorTab(content, 0, content.length, false);
+
+      expect(result.handled).toBe(true);
+      expect(result.newContent).toBe("  1. Item A\n  2. Item B");
+    });
+
+    it("outdents multiple selected lines on Shift+Tab", () => {
+      const content = "  - Item A\n  - Item B";
+      const result = handleEditorTab(content, 0, content.length, true);
+
+      expect(result.handled).toBe(true);
+      expect(result.newContent).toBe("- Item A\n- Item B");
+    });
+  });
+
+  describe("9. Backspace Handling on Empty List Items", () => {
+    it("clears root bullet marker cleanly on Backspace", () => {
+      const content = "- ";
+      const result = handleEditorBackspace(content, 2, 2);
+
+      expect(result).not.toBeNull();
+      expect(result?.handled).toBe(true);
+      expect(result?.newContent).toBe("");
+      expect(result?.newCursorPosition).toBe(0);
+    });
+
+    it("clears numbered list marker cleanly on Backspace", () => {
+      const content = "1. ";
+      const result = handleEditorBackspace(content, 3, 3);
+
+      expect(result).not.toBeNull();
+      expect(result?.handled).toBe(true);
+      expect(result?.newContent).toBe("");
+      expect(result?.newCursorPosition).toBe(0);
+    });
+
+    it("outdents nested empty list item on Backspace", () => {
+      const content = "  - ";
+      const result = handleEditorBackspace(content, 4, 4);
+
+      expect(result).not.toBeNull();
+      expect(result?.handled).toBe(true);
+      expect(result?.newContent).toBe("- ");
+      expect(result?.newCursorPosition).toBe(2);
+    });
+
+    it("returns null if cursor has non-empty text following", () => {
+      const content = "- Text here";
+      const result = handleEditorBackspace(content, 2, 2);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("10. Numbered List Renumbering", () => {
+    it("renumbers non-sequential numbered list items", () => {
+      const content = "1. First\n4. Second\n9. Third";
+      const result = renumberNumberedList(content);
+
+      expect(result).toBe("1. First\n2. Second\n3. Third");
+    });
+
+    it("preserves indentation when renumbering nested lists", () => {
+      const content = "1. Root A\n  1. Sub 1\n  5. Sub 2\n2. Root B";
+      const result = renumberNumberedList(content);
+
+      expect(result).toBe("1. Root A\n  1. Sub 1\n  2. Sub 2\n2. Root B");
     });
   });
 });

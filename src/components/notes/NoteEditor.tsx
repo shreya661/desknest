@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Bold,
   Italic,
+  Underline,
   Strikethrough,
   Code,
+  Highlighter,
   Heading1,
   Heading2,
   Heading3,
@@ -102,6 +104,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeCursorOffset, setActiveCursorOffset] = useState<number>(0);
+  const [activeSelectionRange, setActiveSelectionRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const [draftRecovery, setDraftRecovery] = useState<NoteDraftRecord | null>(null);
   const [fallbackAlert, setFallbackAlert] = useState<string | null>(null);
 
@@ -513,14 +516,30 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const textarea = document.querySelector(
       `textarea[data-block-id="${active.block.id}"]`
     ) as HTMLTextAreaElement | null;
-    const start = textarea ? textarea.selectionStart : activeCursorOffset;
-    const end = textarea ? textarea.selectionEnd : activeCursorOffset;
+    const start =
+      textarea && textarea.selectionStart !== textarea.selectionEnd
+        ? textarea.selectionStart
+        : activeSelectionRange.start !== activeSelectionRange.end
+        ? activeSelectionRange.start
+        : textarea
+        ? textarea.selectionStart
+        : activeCursorOffset;
+    const end =
+      textarea && textarea.selectionStart !== textarea.selectionEnd
+        ? textarea.selectionEnd
+        : activeSelectionRange.start !== activeSelectionRange.end
+        ? activeSelectionRange.end
+        : textarea
+        ? textarea.selectionEnd
+        : activeCursorOffset;
 
     const result = toggleInlineMarker(active.block.content, start, end, prefix, suffix, placeholder);
     const updated = [...blocks];
     updated[active.index] = { ...active.block, content: result.newContent };
     setBlocks(updated);
     setContent(deriveNoteContent(updated));
+    setActiveSelectionRange({ start: result.newStart, end: result.newEnd });
+    setActiveCursorOffset(result.newStart);
     triggerAutoSave(title, updated, color, isPinned, voiceRecordings, fontStyle);
 
     setTimeout(() => {
@@ -538,14 +557,30 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const textarea = document.querySelector(
       `textarea[data-block-id="${active.block.id}"]`
     ) as HTMLTextAreaElement | null;
-    const start = textarea ? textarea.selectionStart : activeCursorOffset;
-    const end = textarea ? textarea.selectionEnd : activeCursorOffset;
+    const start =
+      textarea && textarea.selectionStart !== textarea.selectionEnd
+        ? textarea.selectionStart
+        : activeSelectionRange.start !== activeSelectionRange.end
+        ? activeSelectionRange.start
+        : textarea
+        ? textarea.selectionStart
+        : activeCursorOffset;
+    const end =
+      textarea && textarea.selectionStart !== textarea.selectionEnd
+        ? textarea.selectionEnd
+        : activeSelectionRange.start !== activeSelectionRange.end
+        ? activeSelectionRange.end
+        : textarea
+        ? textarea.selectionEnd
+        : activeCursorOffset;
 
     const result = toggleHeading(active.block.content, start, end, level);
     const updated = [...blocks];
     updated[active.index] = { ...active.block, content: result.newContent };
     setBlocks(updated);
     setContent(deriveNoteContent(updated));
+    setActiveSelectionRange({ start: result.newStart, end: result.newEnd });
+    setActiveCursorOffset(result.newStart);
     triggerAutoSave(title, updated, color, isPinned, voiceRecordings, fontStyle);
 
     setTimeout(() => {
@@ -563,14 +598,30 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const textarea = document.querySelector(
       `textarea[data-block-id="${active.block.id}"]`
     ) as HTMLTextAreaElement | null;
-    const start = textarea ? textarea.selectionStart : activeCursorOffset;
-    const end = textarea ? textarea.selectionEnd : activeCursorOffset;
+    const start =
+      textarea && textarea.selectionStart !== textarea.selectionEnd
+        ? textarea.selectionStart
+        : activeSelectionRange.start !== activeSelectionRange.end
+        ? activeSelectionRange.start
+        : textarea
+        ? textarea.selectionStart
+        : activeCursorOffset;
+    const end =
+      textarea && textarea.selectionStart !== textarea.selectionEnd
+        ? textarea.selectionEnd
+        : activeSelectionRange.start !== activeSelectionRange.end
+        ? activeSelectionRange.end
+        : textarea
+        ? textarea.selectionEnd
+        : activeCursorOffset;
 
     const result = applyTextColor(active.block.content, start, end, textColor);
     const updated = [...blocks];
     updated[active.index] = { ...active.block, content: result.newContent };
     setBlocks(updated);
     setContent(deriveNoteContent(updated));
+    setActiveSelectionRange({ start: result.newStart, end: result.newEnd });
+    setActiveCursorOffset(result.newStart);
     triggerAutoSave(title, updated, color, isPinned, voiceRecordings, fontStyle);
 
     setTimeout(() => {
@@ -915,6 +966,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] overflow-x-auto select-none">
         {/* Core Markdown Formatting */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleInline("**", "**", "bold text")}
           title="Bold (**text**)"
           aria-label="Toggle Bold (**text**)"
@@ -923,6 +975,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <Bold className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleInline("*", "*", "italic text")}
           title="Italic (*text*)"
           aria-label="Toggle Italic (*text*)"
@@ -931,6 +984,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <Italic className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleToggleInline("<u>", "</u>", "underlined text")}
+          title="Underline (<u>text</u>)"
+          aria-label="Toggle Underline (<u>text</u>)"
+          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
+        >
+          <Underline className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleInline("~~", "~~", "strikethrough")}
           title="Strikethrough (~~text~~)"
           aria-label="Toggle Strikethrough (~~text~~)"
@@ -939,6 +1002,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <Strikethrough className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleToggleInline("==", "==", "highlighted text")}
+          title="Highlight (==text==)"
+          aria-label="Toggle Highlight (==text==)"
+          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-amber-500"
+        >
+          <Highlighter className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleInline("`", "`", "code")}
           title="Inline Code (`code`)"
           aria-label="Toggle Inline Code (`code`)"
@@ -951,6 +1024,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
         {/* Headings H1, H2, H3 */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleHeading(1)}
           title="Heading 1 (# Heading)"
           aria-label="Toggle Heading 1"
@@ -959,6 +1033,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <Heading1 className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleHeading(2)}
           title="Heading 2 (## Subheading)"
           aria-label="Toggle Heading 2"
@@ -967,6 +1042,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <Heading2 className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleToggleHeading(3)}
           title="Heading 3 (### Section)"
           aria-label="Toggle Heading 3"
@@ -979,6 +1055,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
         {/* Lists & Checklists */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => insertLinePrefix("- ")}
           title="Bullet list (- Item)"
           aria-label="Insert Bullet List (- Item)"
@@ -987,6 +1064,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <List className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => insertLinePrefix("1. ")}
           title="Numbered list (1. Item)"
           aria-label="Insert Numbered List (1. Item)"
@@ -995,6 +1073,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <ListOrdered className="w-3.5 h-3.5" />
         </button>
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => insertLinePrefix("- [ ] ")}
           title="Checklist item (- [ ] Task)"
           aria-label="Insert Checklist Item (- [ ] Task)"
@@ -1008,30 +1087,35 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         {/* Text Color Swatches */}
         <div className="flex items-center gap-1 px-1 bg-black/5 dark:bg-white/5 rounded-md py-0.5">
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyTextColor("rose")}
             title="Rose text color"
             aria-label="Apply Rose text color"
             className="w-3 h-3 rounded-full bg-rose-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
           />
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyTextColor("amber")}
             title="Amber text color"
             aria-label="Apply Amber text color"
             className="w-3 h-3 rounded-full bg-amber-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
           />
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyTextColor("emerald")}
             title="Emerald text color"
             aria-label="Apply Emerald text color"
             className="w-3 h-3 rounded-full bg-emerald-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
           />
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyTextColor("sky")}
             title="Sky text color"
             aria-label="Apply Sky text color"
             className="w-3 h-3 rounded-full bg-sky-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
           />
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleApplyTextColor("purple")}
             title="Purple text color"
             aria-label="Apply Purple text color"
@@ -1187,8 +1271,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                     onFocus={(id, cursor) => {
                       setActiveBlockId(id);
                       setActiveCursorOffset(cursor);
+                      setActiveSelectionRange({ start: cursor, end: cursor });
                     }}
-                    onCursorChange={(cursor) => setActiveCursorOffset(cursor)}
+                    onCursorChange={(start, end) => {
+                      setActiveCursorOffset(start);
+                      setActiveSelectionRange({ start, end: end !== undefined ? end : start });
+                    }}
                   />
                 );
               }

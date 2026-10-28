@@ -29,10 +29,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     }
   };
 
-  // Helper to parse inline markdown (colors, highlight, bold, italic, strike, code)
+  // Helper to parse inline markdown (colors, highlight, underline, bold, italic, strike, code)
   const renderInlineFormatted = (text: string): React.ReactNode[] => {
-    // Regex matching colors ([color:rose text]), highlights (==text==), bold-italic (***text***), bold (**text**), italic (*text*), strike (~~text~~), code (`text`)
-    const tokenRegex = /(\[color:(?:rose|amber|emerald|sky|purple)\s+[^\]]+\]|==[^=]+==|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|`[^`]+`)/g;
+    // Regex matching colors, highlights, underline, bold-italic, bold, italic, strike, code
+    const tokenRegex = /(\[color:(?:rose|amber|emerald|sky|purple)\s+[^\]]+\]|==[^=]+==|<u>[^<]+<\/u>|__[^_]+__|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|`[^`]+`)/g;
     const parts = text.split(tokenRegex);
 
     return parts.map((part, index) => {
@@ -62,6 +62,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           >
             {renderInlineFormatted(innerContent)}
           </mark>
+        );
+      }
+
+      // Underline: <u>text</u> or __text__
+      if (
+        (part.startsWith("<u>") && part.endsWith("</u>") && part.length >= 7) ||
+        (part.startsWith("__") && part.endsWith("__") && part.length >= 4)
+      ) {
+        const innerContent = part.startsWith("<u>") ? part.slice(3, -4) : part.slice(2, -2);
+        return (
+          <u key={index} className="underline decoration-current underline-offset-2">
+            {renderInlineFormatted(innerContent)}
+          </u>
         );
       }
 
@@ -264,11 +277,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       continue;
     }
 
+    // Indentation calculation for nested list items
+    const indentSpaces = rawLine.match(/^(\s*)/)?.[1].length || 0;
+    const indentLevel = Math.min(6, Math.floor(indentSpaces / 2));
+    const indentPadding = `${indentLevel * 16 + 8}px`;
+
     // Heading 1: #
     if (trimmed.startsWith("# ")) {
-
       renderedElements.push(
-        <h1 key={`h1-${i}`} className="text-xl font-extrabold text-foreground mt-4 mb-2 tracking-tight border-b border-black/10 dark:border-white/10 pb-1.5">
+        <h1 key={`h1-${i}`} className="text-xl sm:text-2xl font-extrabold text-foreground mt-5 mb-2 tracking-tight border-b border-black/10 dark:border-white/10 pb-1.5">
           {renderInlineFormatted(trimmed.slice(2))}
         </h1>
       );
@@ -278,7 +295,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // Heading 2: ##
     if (trimmed.startsWith("## ")) {
       renderedElements.push(
-        <h2 key={`h2-${i}`} className="text-base font-bold text-foreground mt-3 mb-1.5 tracking-tight border-b border-black/5 dark:border-white/5 pb-0.5">
+        <h2 key={`h2-${i}`} className="text-base sm:text-lg font-bold text-foreground mt-4 mb-1.5 tracking-tight border-b border-black/5 dark:border-white/5 pb-1">
           {renderInlineFormatted(trimmed.slice(3))}
         </h2>
       );
@@ -288,7 +305,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // Heading 3: ###
     if (trimmed.startsWith("### ")) {
       renderedElements.push(
-        <h3 key={`h3-${i}`} className="text-sm font-semibold text-foreground/90 mt-2.5 mb-1">
+        <h3 key={`h3-${i}`} className="text-sm font-semibold text-foreground/90 mt-3 mb-1">
           {renderInlineFormatted(trimmed.slice(4))}
         </h3>
       );
@@ -305,6 +322,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       renderedElements.push(
         <div
           key={`check-${i}`}
+          style={{ paddingLeft: indentPadding }}
           onClick={() => onToggleChecklist && onToggleChecklist(lineIndex, !isChecked)}
           className={`flex items-start gap-2.5 py-1 px-1.5 rounded-lg transition-colors group ${
             onToggleChecklist ? "cursor-pointer hover:bg-black/5 dark:hover:bg-white/5" : ""
@@ -332,7 +350,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // Bullet List: - or *
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
       renderedElements.push(
-        <div key={`bullet-${i}`} className="flex items-start gap-2 py-0.5 pl-2 text-xs leading-relaxed">
+        <div key={`bullet-${i}`} style={{ paddingLeft: indentPadding }} className="flex items-start gap-2 py-0.5 text-xs leading-relaxed">
           <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
           <span className="flex-1 text-foreground">{renderInlineFormatted(trimmed.slice(2))}</span>
         </div>
@@ -344,7 +362,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
     if (numMatch) {
       renderedElements.push(
-        <div key={`num-${i}`} className="flex items-start gap-2 py-0.5 pl-2 text-xs leading-relaxed">
+        <div key={`num-${i}`} style={{ paddingLeft: indentPadding }} className="flex items-start gap-2 py-0.5 text-xs leading-relaxed">
           <span className="font-mono font-bold text-muted-fg text-[11px] w-4 text-right flex-shrink-0">
             {numMatch[1]}.
           </span>

@@ -177,6 +177,10 @@ export function isPointNearStroke(
         Math.abs(point.y - y2) <= effectiveTolerance &&
         point.x >= x1 - effectiveTolerance &&
         point.x <= x2 + effectiveTolerance;
+
+
+
+
       return nearLeft || nearRight || nearTop || nearBottom;
     }
   }

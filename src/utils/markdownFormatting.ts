@@ -230,6 +230,48 @@ export function toggleHeading(
 }
 
 /**
+ * Toggles bold formatting (**text**)
+ */
+export function toggleBold(content: string, start: number, end: number): FormattingResult {
+  return toggleInlineMarker(content, start, end, "**", "**", "bold text");
+}
+
+/**
+ * Toggles italic formatting (*text*)
+ */
+export function toggleItalic(content: string, start: number, end: number): FormattingResult {
+  return toggleInlineMarker(content, start, end, "*", "*", "italic text");
+}
+
+/**
+ * Toggles underline formatting (<u>text</u>)
+ */
+export function toggleUnderline(content: string, start: number, end: number): FormattingResult {
+  return toggleInlineMarker(content, start, end, "<u>", "</u>", "underlined text");
+}
+
+/**
+ * Toggles strikethrough formatting (~~text~~)
+ */
+export function toggleStrikethrough(content: string, start: number, end: number): FormattingResult {
+  return toggleInlineMarker(content, start, end, "~~", "~~", "strikethrough");
+}
+
+/**
+ * Toggles inline code (`code`)
+ */
+export function toggleInlineCode(content: string, start: number, end: number): FormattingResult {
+  return toggleInlineMarker(content, start, end, "`", "`", "code");
+}
+
+/**
+ * Toggles text highlight (==text==)
+ */
+export function toggleHighlight(content: string, start: number, end: number): FormattingResult {
+  return toggleInlineMarker(content, start, end, "==", "==", "highlighted text");
+}
+
+/**
  * Removes raw markdown markers, formatting tokens, and tags to create a clean,
  * readable plain-text snippet for note card previews.
  */
@@ -250,6 +292,9 @@ export function cleanMarkdownSnippet(content: string): string {
     .replace(/\[color:(?:rose|amber|emerald|sky|purple)\s+([^\]]+)\]/g, "$1")
     // Clean highlights: ==text== -> text
     .replace(/==([^=]+)==/g, "$1")
+    // Clean underline: <u>text</u> or __text__ -> text
+    .replace(/<u>([^<]+)<\/u>/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
     // Clean bold, italic, strikethrough, inline code
     .replace(/\*\*\*([^*]+)\*\*\*/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
