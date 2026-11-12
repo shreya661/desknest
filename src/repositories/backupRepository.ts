@@ -5,7 +5,13 @@ import { remindersRepository } from "./remindersRepository";
 import { drawingsRepository } from "./drawingsRepository";
 import { settingsRepository } from "./settingsRepository";
 import { notificationsRepository } from "./notificationsRepository";
-import { dbPut, STORES } from "./db";
+import {
+  dbPut,
+  STORES,
+  AudioBlobRecord,
+  getAllAudioBlobs,
+  saveAudioBlob,
+} from "./db";
 
 export interface ValidationResult {
   valid: boolean;
@@ -16,24 +22,27 @@ export interface ValidationResult {
     reminders: number;
     drawings: number;
     notifications: number;
+    audioBlobs: number;
   };
   data?: BackupData;
 }
 
 export const backupRepository = {
   async exportAll(): Promise<BackupData> {
-    const [notes, tasks, reminders, drawings, settings, notifications] = await Promise.all([
-      notesRepository.list(),
-      tasksRepository.list(),
-      remindersRepository.list(),
-      drawingsRepository.list(),
-      settingsRepository.get(),
-      notificationsRepository.list(),
-    ]);
+    const [notes, tasks, reminders, drawings, settings, notifications, audioBlobs] =
+      await Promise.all([
+        notesRepository.list(),
+        tasksRepository.list(),
+        remindersRepository.list(),
+        drawingsRepository.list(),
+        settingsRepository.get(),
+        notificationsRepository.list(),
+        getAllAudioBlobs(),
+      ]);
 
     const backup: BackupData = {
       format: "desknest-backup",
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       notes,
       tasks,
@@ -41,6 +50,7 @@ export const backupRepository = {
       drawings,
       settings,
       notifications,
+      audioBlobs,
     };
 
     return backup;
@@ -56,7 +66,7 @@ export const backupRepository = {
       return {
         valid: false,
         errors: ["Invalid JSON format: file could not be parsed"],
-        counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0 },
+        counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0, audioBlobs: 0 },
       };
     }
 
@@ -64,7 +74,7 @@ export const backupRepository = {
       return {
         valid: false,
         errors: ["Backup data must be an object"],
-        counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0 },
+        counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0, audioBlobs: 0 },
       };
     }
 
@@ -74,7 +84,10 @@ export const backupRepository = {
       errors.push("Invalid backup header: Expected 'desknest-backup' format");
     }
 
-    if (typeof data.version !== "number" || (data.version !== 1 && data.version !== 2)) {
+    if (
+      typeof data.version !== "number" ||
+      (data.version !== 1 && data.version !== 2 && data.version !== 3)
+    ) {
       errors.push(`Unsupported backup schema version: ${data.version}`);
     }
 
@@ -83,6 +96,7 @@ export const backupRepository = {
     const reminders = Array.isArray(data.reminders) ? data.reminders : [];
     const drawings = Array.isArray(data.drawings) ? data.drawings : [];
     const notifications = Array.isArray(data.notifications) ? data.notifications : [];
+    const audioBlobs = Array.isArray(data.audioBlobs) ? data.audioBlobs : [];
 
     const counts = {
       notes: notes.length,
@@ -90,6 +104,7 @@ export const backupRepository = {
       reminders: reminders.length,
       drawings: drawings.length,
       notifications: notifications.length,
+      audioBlobs: audioBlobs.length,
     };
 
     if (errors.length > 0) {
@@ -115,10 +130,14 @@ export const backupRepository = {
       ]);
     }
 
-    // Save notes with backward-compatible block hydration for V1 backups
+    // Save notes with backward-compatible block hydration for V1/V2 backups.
+    // On V1/V2 backups, notes may still carry inline audioData; we migrate
+    // those into audio_blobs on the fly so the notes store stays lean.
     for (const note of data.notes) {
       if (note && note.id && note.title) {
         let noteToSave: Note = note;
+
+        // Upgrade legacy schema: add blocks if missing
         if (!noteToSave.blocks || noteToSave.blocks.length === 0) {
           noteToSave = {
             ...noteToSave,
@@ -132,10 +151,35 @@ export const backupRepository = {
             ],
           };
         }
+
+        // Migrate inline audioData → audio_blobs store for v1/v2 backups
+        if (Array.isArray(noteToSave.voiceRecordings)) {
+          const cleanedRecordings = await Promise.all(
+            noteToSave.voiceRecordings.map(async (rec) => {
+              if (rec.audioData && rec.audioData.length > 0) {
+                const blobRecord: AudioBlobRecord = {
+                  id: rec.id,
+                  noteId: note.id,
+                  mimeType: rec.mimeType || "audio/webm",
+                  data: rec.audioData,
+                  createdAt: rec.createdAt
+                    ? new Date(rec.createdAt).getTime()
+                    : Date.now(),
+                };
+                await saveAudioBlob(blobRecord);
+                // Strip inline data from the note record
+                const { audioData: _dropped, ...rest } = rec;
+                return { ...rest };
+              }
+              return rec;
+            })
+          );
+          noteToSave = { ...noteToSave, voiceRecordings: cleanedRecordings };
+        }
+
         await dbPut<Note>(STORES.NOTES, noteToSave);
       }
     }
-
 
     // Save tasks
     for (const task of data.tasks) {
@@ -162,6 +206,15 @@ export const backupRepository = {
     for (const notif of data.notifications) {
       if (notif && notif.id) {
         await dbPut<NotificationRecord>(STORES.NOTIFICATIONS, notif);
+      }
+    }
+
+    // Save audio blobs (v3 backups)
+    if (Array.isArray(data.audioBlobs)) {
+      for (const blob of data.audioBlobs) {
+        if (blob && blob.id) {
+          await saveAudioBlob(blob as AudioBlobRecord);
+        }
       }
     }
 

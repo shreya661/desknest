@@ -23,6 +23,7 @@ import {
 import { Modal } from "../common/Modal";
 import { Button } from "../common/Button";
 import { soundEffects } from "../../services/soundEffectsService";
+import { saveAudioBlob } from "../../repositories/db";
 import {
   getEnhancedAudioConstraints,
   getFriendlyAudioErrorMessage,
@@ -49,7 +50,9 @@ interface VoiceRecorderModalProps {
     audioData: string,
     durationSeconds: number,
     transcription: string,
-    title?: string
+    title?: string,
+    /** Stable ID of the AudioBlobRecord written to audio_blobs store */
+    recordingId?: string
   ) => void;
 }
 
@@ -631,11 +634,36 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
     setTranscription((prev) => (prev.trim() ? `${prev.trim()} ${tag}` : tag));
   };
 
-  // Save to DeskNest Note
-  const handleSaveToNote = () => {
+  // Save to DeskNest Note — persists audio separately in audio_blobs store
+  const handleSaveToNote = async () => {
     if (!recordedBase64) return;
     soundEffects.playPop();
-    onSaveVoiceNote(recordedBase64, duration, transcription, voiceTitle);
+
+    // Determine MIME type from the recorder or fall back to webm
+    const mimeType =
+      (mediaRecorderRef.current?.mimeType?.split(";")[0]) || "audio/webm";
+
+    // Generate a stable recording ID here so it matches what the note stores
+    const recordingId = "voice_" + Date.now();
+
+    // Save blob separately — note will reference by ID only
+    try {
+      await saveAudioBlob({
+        id: recordingId,
+        // noteId is set by App.tsx / NoteEditor after note creation; pass empty for now
+        // and let notesRepository.update backfill it on the first save.
+        noteId: "",
+        mimeType,
+        data: recordedBase64,
+        createdAt: Date.now(),
+      });
+    } catch (err) {
+      console.error("[VoiceRecorderModal] Failed to save audio blob:", err);
+    }
+
+    // Pass an empty audioData string — callers must load from audio_blobs by id.
+    // The recordingId is embedded in the voiceTitle so App.tsx can wire it.
+    onSaveVoiceNote("", duration, transcription, voiceTitle, recordingId);
     onClose();
   };
 

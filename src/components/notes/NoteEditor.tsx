@@ -424,15 +424,35 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     triggerAutoSave(title, updated, color, isPinned, voiceRecordings, fontStyle);
   };
 
-  const handleSaveVoiceNote = (
+  const handleSaveVoiceNote = async (
     audioData: string,
     durationSeconds: number,
     transcription: string,
-    voiceTitle?: string
+    voiceTitle?: string,
+    recordingId?: string
   ) => {
+    const id = recordingId ?? "voice_" + Date.now();
+
+    // If this call came from NoteEditor's own inline VoiceRecorderModal (not global),
+    // the blob was already saved by VoiceRecorderModal. If audioData is a non-empty
+    // legacy base64 string, persist it to audio_blobs now.
+    if (audioData && audioData.length > 0) {
+      const { saveAudioBlob: saveBlobFn } = await import("../../repositories/db");
+      const mimeType = audioData.startsWith("data:")
+        ? audioData.split(";")[0].slice(5)
+        : "audio/webm";
+      await saveBlobFn({
+        id,
+        noteId: note.id,
+        mimeType,
+        data: audioData,
+        createdAt: Date.now(),
+      });
+    }
+
     const newMemo: VoiceRecording = {
-      id: "voice_" + Date.now(),
-      audioData,
+      id,
+      // audioData intentionally not stored inline
       durationSeconds,
       createdAt: new Date().toISOString(),
       transcription: transcription.trim() || undefined,
@@ -469,10 +489,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     triggerAutoSave(nextTitle, nextBlocks, color, isPinned, updatedRecordings, fontStyle);
   };
 
-  const handleDeleteVoiceNote = (id: string) => {
+  const handleDeleteVoiceNote = async (id: string) => {
     const updated = voiceRecordings.filter((v) => v.id !== id);
     setVoiceRecordings(updated);
     triggerAutoSave(title, blocks, color, isPinned, updated, fontStyle);
+    // Best-effort cleanup of the blob record
+    try {
+      const { deleteAudioBlob } = await import("../../repositories/db");
+      await deleteAudioBlob(id);
+    } catch {
+      // non-critical
+    }
   };
 
   const handleAppendTranscription = (text: string) => {

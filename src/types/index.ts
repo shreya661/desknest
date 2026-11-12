@@ -18,10 +18,16 @@ export type NoteColor =
 
 export interface VoiceRecording {
   id: string;
-  audioData: string; // Base64 Data URL (audio/webm or audio/wav)
+  /**
+   * @deprecated Stored separately in audio_blobs IndexedDB store (DB v3+).
+   * May still be present on notes migrated from older backups; treated as a
+   * transient field and stripped on first save after migration.
+   */
+  audioData?: string;
   durationSeconds: number;
   createdAt: string;
   transcription?: string;
+  mimeType?: string;
 }
 
 export type NoteFontStyle = "sans" | "serif" | "mono" | "casual";
@@ -160,7 +166,7 @@ export interface NotificationRecord {
 
 export interface BackupData {
   format: "desknest-backup";
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   exportedAt: string;
   notes: Note[];
   tasks: Task[];
@@ -168,5 +174,7 @@ export interface BackupData {
   drawings: Drawing[];
   settings: ApplicationSettings;
   notifications: NotificationRecord[];
+  /** v3+: audio blobs serialised separately so notes list() stays lean */
+  audioBlobs?: import("../repositories/db").AudioBlobRecord[];
 }
 

@@ -20,6 +20,8 @@ import { Toast, ToastItem } from "./components/common/Toast";
 import { FocusAmbientWidget } from "./components/focus/FocusAmbientWidget";
 import { VoiceRecorderModal } from "./components/notes/VoiceRecorderModal";
 import { NoteTemplatesModal, NoteTemplate } from "./components/notes/NoteTemplatesModal";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { saveAudioBlob } from "./repositories/db";
 
 export function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceType>("home");
@@ -204,11 +206,16 @@ export function App() {
     audioData: string,
     durationSeconds: number,
     transcription: string,
-    title?: string
+    title?: string,
+    recordingId?: string
   ) => {
+    // If a stable recordingId was supplied, the blob was already written to audio_blobs
+    // by VoiceRecorderModal. We just need to backfill the noteId after note creation.
+    // Fallback: legacy callers that still pass a full base64 audioData.
+    const id = recordingId ?? "voice_" + Date.now();
     const newMemo = {
-      id: "voice_" + Date.now(),
-      audioData,
+      id,
+      // audioData intentionally omitted — stored in audio_blobs store
       durationSeconds,
       createdAt: new Date().toISOString(),
       transcription: transcription.trim() || undefined,
@@ -223,6 +230,30 @@ export function App() {
     await notesRepository.update(created.id, {
       voiceRecordings: [newMemo],
     });
+
+    // Backfill noteId on the blob record if present (may be a no-op if noteId was already set)
+    if (recordingId && audioData === "") {
+      try {
+        const { getAudioBlob } = await import("./repositories/db");
+        const existing = await getAudioBlob(recordingId);
+        if (existing && existing.noteId === "") {
+          await saveAudioBlob({ ...existing, noteId: created.id });
+        }
+      } catch {
+        // non-critical
+      }
+    } else if (audioData && audioData.length > 0) {
+      // Legacy inline audio — save to blob store now
+      const mimeType = audioData.startsWith("data:") ? audioData.split(";")[0].slice(5) : "audio/webm";
+      await saveAudioBlob({
+        id,
+        noteId: created.id,
+        mimeType,
+        data: audioData,
+        createdAt: Date.now(),
+      });
+    }
+
     refreshAll();
     handleOpenNote(created.id);
   };
@@ -313,6 +344,7 @@ export function App() {
         {/* Active Workspace View */}
         <main className="flex-1 flex flex-col overflow-hidden bg-background relative">
           {activeWorkspace === "home" && (
+            <ErrorBoundary label="Home Dashboard">
             <HomeDashboard
               notes={notes}
               tasks={tasks}
@@ -321,9 +353,11 @@ export function App() {
               onOpenNote={handleOpenNote}
               onRefreshData={refreshAll}
             />
+            </ErrorBoundary>
           )}
 
           {activeWorkspace === "notes" && (
+            <ErrorBoundary label="Notes Workspace">
             <NotesWorkspace
               notes={notes}
               selectedNoteId={selectedNoteId}
@@ -332,9 +366,11 @@ export function App() {
               defaultNoteColor={settings.defaultNoteColor}
               onOpenFullCanvas={handleOpenFullCanvas}
             />
+            </ErrorBoundary>
           )}
 
           {activeWorkspace === "drawing" && (
+            <ErrorBoundary label="Sketch Canvas">
             <DrawingWorkspace
               initialDrawingId={selectedDrawingId}
               onOpenNote={(noteId) => {
@@ -342,20 +378,26 @@ export function App() {
                 setActiveWorkspace("notes");
               }}
             />
+            </ErrorBoundary>
           )}
 
           {activeWorkspace === "tasks" && (
+            <ErrorBoundary label="Tasks Workspace">
             <TasksWorkspace tasks={tasks} onRefreshTasks={refreshAll} />
+            </ErrorBoundary>
           )}
 
           {activeWorkspace === "reminders" && (
+            <ErrorBoundary label="Reminders Workspace">
             <RemindersWorkspace
               reminders={reminders}
               onRefreshReminders={refreshAll}
             />
+            </ErrorBoundary>
           )}
 
           {activeWorkspace === "search" && (
+            <ErrorBoundary label="Search Workspace">
             <SearchWorkspace
               notes={notes}
               tasks={tasks}
@@ -363,14 +405,17 @@ export function App() {
               onOpenNote={handleOpenNote}
               onOpenWorkspace={setActiveWorkspace}
             />
+            </ErrorBoundary>
           )}
 
           {activeWorkspace === "settings" && (
+            <ErrorBoundary label="Settings Workspace">
             <SettingsWorkspace
               settings={settings}
               onUpdateSettings={setSettings}
               onRefreshAllData={refreshAll}
             />
+            </ErrorBoundary>
           )}
         </main>
       </div>
@@ -384,24 +429,30 @@ export function App() {
       />
 
       {/* Focus Sanctuary & Ambient Audio Modal */}
+      <ErrorBoundary label="Focus Widget">
       <FocusAmbientWidget
         isOpen={focusModalOpen}
         onClose={() => setFocusModalOpen(false)}
       />
+      </ErrorBoundary>
 
       {/* Voice Note Recorder & Saver Modal */}
+      <ErrorBoundary label="Voice Recorder">
       <VoiceRecorderModal
         isOpen={voiceRecorderOpen}
         onClose={() => setVoiceRecorderOpen(false)}
         onSaveVoiceNote={handleSaveGlobalVoiceNote}
       />
+      </ErrorBoundary>
 
       {/* Note Templates Modal */}
+      <ErrorBoundary label="Templates Modal">
       <NoteTemplatesModal
         isOpen={templatesModalOpen}
         onClose={() => setTemplatesModalOpen(false)}
         onSelectTemplate={handleApplyGlobalTemplate}
       />
+      </ErrorBoundary>
     </div>
   );
 }
