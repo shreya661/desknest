@@ -47,7 +47,14 @@ export interface DrawingBlock {
   aspectRatio?: number;
 }
 
-export type NoteBlock = TextBlock | DrawingBlock;
+export interface CustomBlock {
+  id: string;
+  type: string;
+  data?: any;
+  [key: string]: any;
+}
+
+export type NoteBlock = TextBlock | DrawingBlock | CustomBlock;
 
 export interface NoteDraftRecord {
   id: string;

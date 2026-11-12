@@ -42,7 +42,7 @@ export const backupRepository = {
 
     const backup: BackupData = {
       format: "desknest-backup",
-      version: 3,
+      version: 2,
       exportedAt: new Date().toISOString(),
       notes,
       tasks,

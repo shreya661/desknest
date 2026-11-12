@@ -1,4 +1,5 @@
 import { Note, NoteBlock } from "../types";
+import { getBlockPlugin, getBlockData } from "../blocks/blockRegistry";
 
 export interface SplitResult {
   topContent: string;
@@ -119,12 +120,17 @@ export function deriveNoteContent(blocks: NoteBlock[]): string {
 
   return blocks
     .map((block) => {
+      const plugin = getBlockPlugin(block.type);
+      if (plugin) {
+        const data = getBlockData(block);
+        return plugin.toPlainText(data);
+      }
       if (block.type === "text") {
-        return block.content;
+        return (block as any).content || "";
       }
       if (block.type === "drawing") {
-        const title = block.title || "Embedded Drawing";
-        return `![drawing:${block.drawingId}](${title})`;
+        const title = (block as any).title || "Embedded Drawing";
+        return `![drawing:${(block as any).drawingId}](${title})`;
       }
       return "";
     })

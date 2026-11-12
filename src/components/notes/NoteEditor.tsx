@@ -1,39 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  Code,
-  Highlighter,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  CheckSquare,
-  Pin,
-  Trash2,
-  Copy,
-  Download,
-  Check,
-  ArrowLeft,
-  Files,
-  Mic,
-  Lightbulb,
-  Bookmark,
-  AlertTriangle,
-  Quote,
-  Terminal,
-  Type,
-  Share2,
-  FileSpreadsheet,
-  Eye,
-  Columns,
-  Edit3,
-} from "lucide-react";
-
-import {
   Note,
   NoteColor,
   NoteFontStyle,
@@ -54,13 +20,6 @@ import {
   splitTextBlockAtCursor,
 } from "../../utils/blockSplitting";
 import { evaluateDraftFreshness } from "../../utils/draftFreshness";
-import { Button } from "../common/Button";
-
-import { VoiceRecorderModal } from "./VoiceRecorderModal";
-import { VoiceNotePlayer } from "./VoiceNotePlayer";
-import { ShareNoteModal } from "./ShareNoteModal";
-import { NoteTemplatesModal, NoteTemplate } from "./NoteTemplatesModal";
-import { MarkdownRenderer } from "./MarkdownRenderer";
 import { soundEffects } from "../../services/soundEffectsService";
 import {
   toggleInlineMarker,
@@ -68,8 +27,16 @@ import {
   toggleHeading,
   TextColor,
 } from "../../utils/markdownFormatting";
-import { TextBlockItem } from "./blocks/TextBlockItem";
-import { DrawingBlockItem } from "./blocks/DrawingBlockItem";
+import { createBlockInstance } from "../../blocks";
+import { VoiceRecorderModal } from "./VoiceRecorderModal";
+import { VoiceNotePlayer } from "./VoiceNotePlayer";
+import { ShareNoteModal } from "./ShareNoteModal";
+import { NoteTemplatesModal, NoteTemplate } from "./NoteTemplatesModal";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+import { EditorHeader } from "./editor/EditorHeader";
+import { EditorToolbar } from "./editor/EditorToolbar";
+import { EditorRecoveryBanner } from "./editor/EditorRecoveryBanner";
+import { EditorBlockList } from "./editor/EditorBlockList";
 
 interface NoteEditorProps {
   note: Note;
@@ -90,11 +57,15 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 }) => {
   const [title, setTitle] = useState(note.title);
   const [blocks, setBlocks] = useState<NoteBlock[]>(() => ensureNoteBlocks(note));
-  const [content, setContent] = useState(note.content || deriveNoteContent(ensureNoteBlocks(note)));
+  const [content, setContent] = useState(
+    note.content || deriveNoteContent(ensureNoteBlocks(note))
+  );
   const [color, setColor] = useState<NoteColor>(note.color);
   const [isPinned, setIsPinned] = useState(note.isPinned);
   const [fontStyle, setFontStyle] = useState<NoteFontStyle>(note.fontStyle || "sans");
-  const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>(note.voiceRecordings || []);
+  const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>(
+    note.voiceRecordings || []
+  );
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving">("saved");
   const [copied, setCopied] = useState(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
@@ -104,7 +75,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeCursorOffset, setActiveCursorOffset] = useState<number>(0);
-  const [activeSelectionRange, setActiveSelectionRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [activeSelectionRange, setActiveSelectionRange] = useState<{
+    start: number;
+    end: number;
+  }>({ start: 0, end: 0 });
   const [draftRecovery, setDraftRecovery] = useState<NoteDraftRecord | null>(null);
   const [fallbackAlert, setFallbackAlert] = useState<string | null>(null);
 
@@ -124,7 +98,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       setActiveBlockId(initialBlocks[0].id);
     }
 
-    // Check for durable recovery draft in IndexedDB (Freshness verification)
+    // Check for durable recovery draft in IndexedDB
     draftsRepository.getDraft(note.id).then((draft) => {
       if (draft) {
         const freshness = evaluateDraftFreshness(draft, note);
@@ -165,7 +139,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     return () => unregister();
   }, [blocks, title, color, isPinned, voiceRecordings, fontStyle, note, onUpdate]);
 
-
   // Debounced auto-save with Monotonic SaveQueue and Durable Recovery Draft
   const triggerAutoSave = (
     newTitle: string,
@@ -182,7 +155,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // Immediately write lightweight recovery draft in IndexedDB (Refinement 2)
+    // Immediately write lightweight recovery draft in IndexedDB
     draftsRepository.saveDraft({
       id: note.id,
       noteId: note.id,
@@ -212,7 +185,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             drawingIdsToDelete
           );
           onUpdate(updated);
-          // On successful save, clean up recovery draft (Refinement 2)
           await draftsRepository.removeDraft(note.id);
           setSaveStatus("saved");
         });
@@ -250,8 +222,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     triggerAutoSave(val, blocks, color, isPinned, voiceRecordings, fontStyle);
   };
 
-  const handleTextBlockChange = (blockId: string, newText: string) => {
-    const updated = blocks.map((b) => (b.id === blockId ? { ...b, content: newText } : b));
+  const handleBlockChange = (updatedBlock: NoteBlock) => {
+    const updated = blocks.map((b) => (b.id === updatedBlock.id ? updatedBlock : b));
     setBlocks(updated);
     setContent(deriveNoteContent(updated));
     triggerAutoSave(title, updated, color, isPinned, voiceRecordings, fontStyle);
@@ -275,7 +247,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     triggerAutoSave(title, blocks, color, nextPinned, voiceRecordings, fontStyle);
   };
 
-  // Insert Drawing at current cursor position (Refinement 3)
+  // Insert Drawing at current cursor position
   const handleInsertDrawing = async () => {
     soundEffects.playPop();
 
@@ -365,6 +337,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     );
   };
 
+  // Insert a custom block plugin instance at the end
+  const handleInsertCustomBlock = (type: string) => {
+    soundEffects.playPop();
+    const newBlock = createBlockInstance(type);
+    const nextBlocks = [...blocks, newBlock as NoteBlock];
+    setBlocks(nextBlocks);
+    setContent(deriveNoteContent(nextBlocks));
+    setActiveBlockId(newBlock.id);
+    triggerAutoSave(title, nextBlocks, color, isPinned, voiceRecordings, fontStyle);
+  };
+
   const handleUpdateDrawing = async (drawingId: string, updatedStrokes: any[]) => {
     try {
       const existing = await drawingsRepository.getById(drawingId);
@@ -387,27 +370,41 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   };
 
-  const handleDeleteDrawingBlock = (blockId: string) => {
+  const handleDeleteBlock = (blockId: string) => {
     const block = blocks.find((b) => b.id === blockId);
-    if (!block || block.type !== "drawing") return;
+    if (!block) return;
 
-    if (!window.confirm("Remove this drawing from the note?")) return;
+    if (block.type === "drawing") {
+      if (!window.confirm("Remove this drawing from the note?")) return;
+      const drawingId = (block as DrawingBlock).drawingId;
+      const nextBlocks = blocks.filter((b) => b.id !== blockId);
+      setBlocks(nextBlocks);
+      setContent(deriveNoteContent(nextBlocks));
+      triggerAutoSave(
+        title,
+        nextBlocks,
+        color,
+        isPinned,
+        voiceRecordings,
+        fontStyle,
+        [],
+        [drawingId]
+      );
+      return;
+    }
 
-    const drawingId = block.drawingId;
     const nextBlocks = blocks.filter((b) => b.id !== blockId);
+    // Always preserve at least one text block
+    if (nextBlocks.length === 0) {
+      nextBlocks.push({
+        id: "blk_txt_" + Date.now(),
+        type: "text",
+        content: "",
+      });
+    }
     setBlocks(nextBlocks);
     setContent(deriveNoteContent(nextBlocks));
-
-    triggerAutoSave(
-      title,
-      nextBlocks,
-      color,
-      isPinned,
-      voiceRecordings,
-      fontStyle,
-      [],
-      [drawingId]
-    );
+    triggerAutoSave(title, nextBlocks, color, isPinned, voiceRecordings, fontStyle);
   };
 
   const handleToggleBlockDisplayMode = (blockId: string) => {
@@ -415,7 +412,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       if (b.id === blockId && b.type === "drawing") {
         return {
           ...b,
-          displayMode: (b.displayMode === "expanded" ? "inline" : "expanded") as "inline" | "expanded",
+          displayMode:
+            (b.displayMode === "expanded" ? "inline" : "expanded") as
+              | "inline"
+              | "expanded",
         };
       }
       return b;
@@ -433,9 +433,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   ) => {
     const id = recordingId ?? "voice_" + Date.now();
 
-    // If this call came from NoteEditor's own inline VoiceRecorderModal (not global),
-    // the blob was already saved by VoiceRecorderModal. If audioData is a non-empty
-    // legacy base64 string, persist it to audio_blobs now.
     if (audioData && audioData.length > 0) {
       const { saveAudioBlob: saveBlobFn } = await import("../../repositories/db");
       const mimeType = audioData.startsWith("data:")
@@ -452,7 +449,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
     const newMemo: VoiceRecording = {
       id,
-      // audioData intentionally not stored inline
       durationSeconds,
       createdAt: new Date().toISOString(),
       transcription: transcription.trim() || undefined,
@@ -467,7 +463,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         const tb = nextBlocks[lastTextIdx] as TextBlock;
         nextBlocks[lastTextIdx] = {
           ...tb,
-          content: tb.content ? `${tb.content}\n\n🎙️ ${transcription.trim()}` : `🎙️ ${transcription.trim()}`,
+          content: tb.content
+            ? `${tb.content}\n\n🎙️ ${transcription.trim()}`
+            : `🎙️ ${transcription.trim()}`,
         };
       } else {
         nextBlocks.push({
@@ -493,7 +491,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const updated = voiceRecordings.filter((v) => v.id !== id);
     setVoiceRecordings(updated);
     triggerAutoSave(title, blocks, color, isPinned, updated, fontStyle);
-    // Best-effort cleanup of the blob record
     try {
       const { deleteAudioBlob } = await import("../../repositories/db");
       await deleteAudioBlob(id);
@@ -528,7 +525,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const idx = blocks.findIndex((b) => b.id === activeBlockId && b.type === "text");
     if (idx !== -1) return { block: blocks[idx] as TextBlock, index: idx };
     const firstTextIdx = blocks.findIndex((b) => b.type === "text");
-    if (firstTextIdx !== -1) return { block: blocks[firstTextIdx] as TextBlock, index: firstTextIdx };
+    if (firstTextIdx !== -1) {
+      return { block: blocks[firstTextIdx] as TextBlock, index: firstTextIdx };
+    }
     return null;
   };
 
@@ -560,7 +559,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         ? textarea.selectionEnd
         : activeCursorOffset;
 
-    const result = toggleInlineMarker(active.block.content, start, end, prefix, suffix, placeholder);
+    const result = toggleInlineMarker(
+      active.block.content,
+      start,
+      end,
+      prefix,
+      suffix,
+      placeholder
+    );
     const updated = [...blocks];
     updated[active.index] = { ...active.block, content: result.newContent };
     setBlocks(updated);
@@ -672,7 +678,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const lastNewline = before.lastIndexOf("\n");
     const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
 
-    const newContent = current.substring(0, lineStart) + prefix + current.substring(lineStart);
+    const newContent =
+      current.substring(0, lineStart) + prefix + current.substring(lineStart);
     const updated = [...blocks];
     updated[active.index] = { ...active.block, content: newContent };
     setBlocks(updated);
@@ -687,14 +694,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }, 10);
   };
 
-  const insertAestheticBox = (boxType: "keypoint" | "idea" | "quote" | "code" | "warning") => {
+  const insertAestheticBox = (
+    boxType: "keypoint" | "idea" | "quote" | "code" | "warning"
+  ) => {
     let boxText = "";
     if (boxType === "keypoint") {
       boxText = "\n\n> 📌 **KEY TAKEAWAY**\n> Enter key point or concept here...\n\n";
     } else if (boxType === "idea") {
       boxText = "\n\n> 💡 **IDEA & INSPIRATION**\n> A creative thought or observation...\n\n";
     } else if (boxType === "quote") {
-      boxText = '\n\n> 💬 *"Simplicity is the prerequisite for reliability."*\n> — Edsger W. Dijkstra\n\n';
+      boxText =
+        '\n\n> 💬 *"Simplicity is the prerequisite for reliability."*\n> — Edsger W. Dijkstra\n\n';
     } else if (boxType === "code") {
       boxText = "\n\n```typescript\n// Aesthetic Code Box\nconst focus = true;\n```\n\n";
     } else if (boxType === "warning") {
@@ -739,7 +749,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setBlocks(updatedBlocks);
     setContent(template.content);
     setColor(template.color);
-    triggerAutoSave(newTitle, updatedBlocks, template.color, isPinned, voiceRecordings, fontStyle);
+    triggerAutoSave(
+      newTitle,
+      updatedBlocks,
+      template.color,
+      isPinned,
+      voiceRecordings,
+      fontStyle
+    );
   };
 
   const handleCopyContent = () => {
@@ -761,33 +778,24 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const colorList: { id: NoteColor; label: string; bg: string }[] = [
-    { id: "amber", label: "Amber", bg: "bg-amber-400" },
-    { id: "lemon", label: "Lemon", bg: "bg-yellow-300" },
-    { id: "mint", label: "Mint", bg: "bg-emerald-400" },
-    { id: "sky", label: "Sky", bg: "bg-sky-400" },
-    { id: "lavender", label: "Lavender", bg: "bg-purple-400" },
-    { id: "rose", label: "Rose", bg: "bg-rose-400" },
-    { id: "slate", label: "Slate", bg: "bg-slate-400" },
-  ];
-
-  const fontOptions: { id: NoteFontStyle; label: string; styleClass: string }[] = [
-    { id: "sans", label: "Clean Sans", styleClass: "font-sans" },
-    { id: "serif", label: "Editorial Serif", styleClass: "font-serif" },
-    { id: "mono", label: "Retro Mono", styleClass: "font-mono" },
-    { id: "casual", label: "Handwritten", styleClass: "font-casual" },
-  ];
-
-  const getFontFamilyStyle = () => {
+  const getFontFamilyStyle = (): React.CSSProperties => {
     switch (fontStyle) {
       case "serif":
         return { fontFamily: 'Georgia, Cambria, "Times New Roman", serif' };
       case "mono":
-        return { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' };
+        return {
+          fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        };
       case "casual":
-        return { fontFamily: '"Caveat", "Segoe Print", "Bradley Hand", cursive, sans-serif' };
+        return {
+          fontFamily: '"Caveat", "Segoe Print", "Bradley Hand", cursive, sans-serif',
+        };
       default:
-        return { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' };
+        return {
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        };
     }
   };
 
@@ -812,460 +820,53 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         borderColor: `var(--note-${color}-border)`,
       }}
     >
-      {/* Durable Recovery Banner (Refinement 2) */}
-      {draftRecovery && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-amber-500/20 text-amber-900 dark:text-amber-100 text-xs border-b border-amber-500/30">
-          <span className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            Unsaved changes recovered from {new Date(draftRecovery.updatedAt).toLocaleTimeString()}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleRestoreDraft}
-              className="px-2 py-0.5 rounded bg-amber-600 text-white font-semibold hover:bg-amber-700 transition"
-            >
-              Restore
-            </button>
-            <button
-              onClick={handleDiscardDraft}
-              className="px-2 py-0.5 rounded text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 transition"
-            >
-              Discard
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Recovery & Notice Banners */}
+      <EditorRecoveryBanner
+        draftRecovery={draftRecovery}
+        fallbackAlert={fallbackAlert}
+        onRestoreDraft={handleRestoreDraft}
+        onDiscardDraft={handleDiscardDraft}
+      />
 
-      {/* Fallback Notice Banner (Refinement 3) */}
-      {fallbackAlert && (
-        <div className="px-3 py-1 bg-sky-500/15 text-sky-900 dark:text-sky-100 text-xs border-b border-sky-500/30 flex items-center gap-1.5">
-          <span>ℹ️</span>
-          <span>{fallbackAlert}</span>
-        </div>
-      )}
+      {/* Top action header bar */}
+      <EditorHeader
+        title={title}
+        onTitleChange={handleTitleChange}
+        color={color}
+        onColorChange={handleColorChange}
+        fontStyle={fontStyle}
+        onFontStyleChange={handleFontStyleChange}
+        isPinned={isPinned}
+        onTogglePin={handleTogglePin}
+        saveStatus={saveStatus}
+        copied={copied}
+        onCopyContent={handleCopyContent}
+        onDuplicate={() => onDuplicate(note)}
+        onExportMarkdown={handleExportMarkdown}
+        onDelete={() => {
+          if (window.confirm("Are you sure you want to delete this note?")) {
+            onDelete(note.id);
+          }
+        }}
+        onClose={onClose}
+        onOpenShare={() => setShareModalOpen(true)}
+        onOpenTemplates={() => setTemplatesModalOpen(true)}
+        onOpenVoiceRecorder={() => setVoiceModalOpen(true)}
+        fontFamilyStyle={getFontFamilyStyle()}
+      />
 
-      {/* Top action toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            title="Back to notes list"
-            aria-label="Back to notes list"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-
-          {/* Color palette selector */}
-          <div className="flex items-center gap-1 ml-2">
-            {colorList.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => handleColorChange(c.id)}
-                title={c.label}
-                aria-label={`Select ${c.label} note background color`}
-                className={`w-4 h-4 rounded-full ${c.bg} transition-transform ${
-                  color === c.id
-                    ? "scale-125 ring-2 ring-primary ring-offset-1 ring-offset-background"
-                    : "hover:scale-110 opacity-70 hover:opacity-100"
-                }`}
-              />
-            ))}
-          </div>
-
-          {/* Typography selector */}
-          <div className="flex items-center gap-1 ml-3 border-l border-black/10 dark:border-white/10 pl-2">
-            <Type className="w-3.5 h-3.5 text-muted-fg mr-0.5" />
-            <select
-              value={fontStyle}
-              onChange={(e) => handleFontStyleChange(e.target.value as NoteFontStyle)}
-              title="Font Style"
-              className="bg-transparent text-xs text-foreground font-medium rounded px-1.5 py-0.5 border border-black/10 dark:border-white/10 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-            >
-              {fontOptions.map((f) => (
-                <option key={f.id} value={f.id} className="bg-surface text-foreground">
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Right side actions */}
-        <div className="flex items-center gap-1">
-          <span className="text-[11px] text-muted-fg mr-2">
-            {saveStatus === "saving" ? "Saving..." : "Saved"}
-          </span>
-
-          {/* Share Note Button */}
-          <button
-            onClick={() => setShareModalOpen(true)}
-            title="Share note"
-            className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-fg hover:text-foreground transition-colors"
-            aria-label="Share note"
-          >
-            <Share2 className="w-4 h-4" />
-          </button>
-
-          {/* Templates Button */}
-          <button
-            onClick={() => setTemplatesModalOpen(true)}
-            title="Choose Aesthetic Template"
-            className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-fg hover:text-foreground transition-colors flex items-center gap-1"
-            aria-label="Templates"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span className="text-[10px] hidden sm:inline">Template</span>
-          </button>
-
-          {/* Voice Memo Record Button */}
-          <button
-            onClick={() => setVoiceModalOpen(true)}
-            title="Record Voice Note / Dictation"
-            className="p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 flex items-center gap-1 font-semibold transition-all hover:scale-105 active:scale-95"
-            aria-label="Record Voice Memo"
-          >
-            <Mic className="w-3.5 h-3.5" />
-            <span className="text-[10px] hidden sm:inline">Voice</span>
-          </button>
-
-          {/* Pin toggle */}
-          <button
-            onClick={handleTogglePin}
-            title={isPinned ? "Unpin note" : "Pin note"}
-            className={`p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${
-              isPinned ? "text-amber-500 fill-amber-500" : "text-muted-fg"
-            }`}
-            aria-label="Pin note"
-          >
-            <Pin className={`w-4 h-4 ${isPinned ? "fill-current" : ""}`} />
-          </button>
-
-          {/* Copy content */}
-          <button
-            onClick={handleCopyContent}
-            title="Copy note to clipboard"
-            className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-fg hover:text-foreground transition-colors"
-            aria-label="Copy note"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-          </button>
-
-          {/* Duplicate note */}
-          <button
-            onClick={() => onDuplicate(note)}
-            title="Duplicate note"
-            className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-fg hover:text-foreground transition-colors"
-            aria-label="Duplicate note"
-          >
-            <Files className="w-4 h-4" />
-          </button>
-
-          {/* Export markdown */}
-          <button
-            onClick={handleExportMarkdown}
-            title="Export as Markdown (.md)"
-            className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-fg hover:text-foreground transition-colors"
-            aria-label="Export Markdown"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          {/* Delete note */}
-          <button
-            onClick={() => {
-              if (window.confirm("Are you sure you want to delete this note?")) {
-                onDelete(note.id);
-              }
-            }}
-            title="Delete note"
-            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-muted-fg hover:text-rose-500 transition-colors"
-            aria-label="Delete note"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Rich formatting ribbon + Drawing Insert + Aesthetic Boxes */}
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] overflow-x-auto select-none">
-        {/* Core Markdown Formatting */}
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleInline("**", "**", "bold text")}
-          title="Bold (**text**)"
-          aria-label="Toggle Bold (**text**)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Bold className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleInline("*", "*", "italic text")}
-          title="Italic (*text*)"
-          aria-label="Toggle Italic (*text*)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Italic className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleInline("<u>", "</u>", "underlined text")}
-          title="Underline (<u>text</u>)"
-          aria-label="Toggle Underline (<u>text</u>)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Underline className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleInline("~~", "~~", "strikethrough")}
-          title="Strikethrough (~~text~~)"
-          aria-label="Toggle Strikethrough (~~text~~)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Strikethrough className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleInline("==", "==", "highlighted text")}
-          title="Highlight (==text==)"
-          aria-label="Toggle Highlight (==text==)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-amber-500"
-        >
-          <Highlighter className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleInline("`", "`", "code")}
-          title="Inline Code (`code`)"
-          aria-label="Toggle Inline Code (`code`)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Code className="w-3.5 h-3.5" />
-        </button>
-
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10 mx-1" />
-
-        {/* Headings H1, H2, H3 */}
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleHeading(1)}
-          title="Heading 1 (# Heading)"
-          aria-label="Toggle Heading 1"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Heading1 className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleHeading(2)}
-          title="Heading 2 (## Subheading)"
-          aria-label="Toggle Heading 2"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Heading2 className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => handleToggleHeading(3)}
-          title="Heading 3 (### Section)"
-          aria-label="Toggle Heading 3"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <Heading3 className="w-3.5 h-3.5" />
-        </button>
-
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10 mx-1" />
-
-        {/* Lists & Checklists */}
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => insertLinePrefix("- ")}
-          title="Bullet list (- Item)"
-          aria-label="Insert Bullet List (- Item)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <List className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => insertLinePrefix("1. ")}
-          title="Numbered list (1. Item)"
-          aria-label="Insert Numbered List (1. Item)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <ListOrdered className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => insertLinePrefix("- [ ] ")}
-          title="Checklist item (- [ ] Task)"
-          aria-label="Insert Checklist Item (- [ ] Task)"
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
-        >
-          <CheckSquare className="w-3.5 h-3.5" />
-        </button>
-
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10 mx-1" />
-
-        {/* Text Color Swatches */}
-        <div className="flex items-center gap-1 px-1 bg-black/5 dark:bg-white/5 rounded-md py-0.5">
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleApplyTextColor("rose")}
-            title="Rose text color"
-            aria-label="Apply Rose text color"
-            className="w-3 h-3 rounded-full bg-rose-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
-          />
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleApplyTextColor("amber")}
-            title="Amber text color"
-            aria-label="Apply Amber text color"
-            className="w-3 h-3 rounded-full bg-amber-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
-          />
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleApplyTextColor("emerald")}
-            title="Emerald text color"
-            aria-label="Apply Emerald text color"
-            className="w-3 h-3 rounded-full bg-emerald-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
-          />
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleApplyTextColor("sky")}
-            title="Sky text color"
-            aria-label="Apply Sky text color"
-            className="w-3 h-3 rounded-full bg-sky-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
-          />
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleApplyTextColor("purple")}
-            title="Purple text color"
-            aria-label="Apply Purple text color"
-            className="w-3 h-3 rounded-full bg-purple-500 hover:scale-125 transition-transform border border-black/10 dark:border-white/10"
-          />
-        </div>
-
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10 mx-1" />
-
-        {/* Insert Drawing Button (Unified Visual Notebook) */}
-        <button
-          onClick={handleInsertDrawing}
-          title="Insert drawing canvas at cursor position"
-          aria-label="Insert Drawing"
-          className="px-2 py-0.5 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-600 dark:text-sky-400 font-semibold text-[11px] flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
-        >
-          <span>✏️</span>
-          <span>Drawing</span>
-        </button>
-
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10 mx-1" />
-
-        {/* Aesthetic Callout Text Box Inserts */}
-        <span className="text-[10px] text-muted-fg font-semibold uppercase tracking-wider ml-1 mr-0.5">
-          Boxes:
-        </span>
-        <button
-          onClick={() => insertAestheticBox("keypoint")}
-          title="Insert Key Point Card"
-          className="px-1.5 py-0.5 rounded hover:bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <Bookmark className="w-3 h-3" />
-          <span>Point</span>
-        </button>
-
-        <button
-          onClick={() => insertAestheticBox("idea")}
-          title="Insert Idea Card"
-          className="px-1.5 py-0.5 rounded hover:bg-sky-500/15 text-sky-600 dark:text-sky-400 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <Lightbulb className="w-3 h-3" />
-          <span>Idea</span>
-        </button>
-
-        <button
-          onClick={() => insertAestheticBox("quote")}
-          title="Insert Aesthetic Quote Box"
-          className="px-1.5 py-0.5 rounded hover:bg-purple-500/15 text-purple-600 dark:text-purple-400 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <Quote className="w-3 h-3" />
-          <span>Quote</span>
-        </button>
-
-        <button
-          onClick={() => insertAestheticBox("warning")}
-          title="Insert Warning / Detail Box"
-          className="px-1.5 py-0.5 rounded hover:bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <AlertTriangle className="w-3 h-3" />
-          <span>Alert</span>
-        </button>
-
-        <button
-          onClick={() => insertAestheticBox("code")}
-          title="Insert Code / Terminal Box"
-          className="px-1.5 py-0.5 rounded hover:bg-slate-500/15 text-foreground text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <Terminal className="w-3 h-3" />
-          <span>Code</span>
-        </button>
-
-        {/* View Mode Segmented Switcher (Write / Split / Preview) */}
-        <div className="flex items-center gap-0.5 bg-black/5 dark:bg-white/5 p-0.5 rounded-lg border border-black/10 dark:border-white/10 ml-auto flex-shrink-0">
-          <button
-            onClick={() => setViewMode("edit")}
-            title="Write mode (Structured Block Editor)"
-            className={`px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-all ${
-              viewMode === "edit"
-                ? "bg-surface text-foreground shadow-xs"
-                : "text-muted-fg hover:text-foreground"
-            }`}
-          >
-            <Edit3 className="w-3 h-3" />
-            <span>Write</span>
-          </button>
-          <button
-            onClick={() => setViewMode("split")}
-            title="Split mode (Side-by-side Live Preview)"
-            className={`px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-all ${
-              viewMode === "split"
-                ? "bg-surface text-foreground shadow-xs"
-                : "text-muted-fg hover:text-foreground"
-            }`}
-          >
-            <Columns className="w-3 h-3" />
-            <span className="hidden sm:inline">Split</span>
-          </button>
-          <button
-            onClick={() => setViewMode("preview")}
-            title="Preview mode (Rich Formatted View)"
-            className={`px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-all ${
-              viewMode === "preview"
-                ? "bg-surface text-foreground shadow-xs"
-                : "text-muted-fg hover:text-foreground"
-            }`}
-          >
-            <Eye className="w-3 h-3" />
-            <span>Preview</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Note Title Input */}
-      <div className="px-4 pt-3">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          placeholder="Note Title..."
-          style={getFontFamilyStyle()}
-          className="w-full bg-transparent text-base font-bold text-foreground placeholder:text-muted-fg focus:outline-none"
-        />
-      </div>
+      {/* Formatting & Block Toolbar */}
+      <EditorToolbar
+        onToggleInline={handleToggleInline}
+        onToggleHeading={handleToggleHeading}
+        onInsertLinePrefix={insertLinePrefix}
+        onApplyTextColor={handleApplyTextColor}
+        onInsertDrawing={handleInsertDrawing}
+        onInsertAestheticBox={insertAestheticBox}
+        onInsertCustomBlock={handleInsertCustomBlock}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
       {/* Attached Voice Memos */}
       {voiceRecordings.length > 0 && (
@@ -1285,46 +886,25 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       <div className="flex-1 p-4 pt-2 flex overflow-hidden gap-4 min-h-0">
         {/* Block Document Editor Pane (shown in 'edit' or 'split') */}
         {(viewMode === "edit" || viewMode === "split") && (
-          <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1">
-            {blocks.map((block) => {
-              if (block.type === "text") {
-                return (
-                  <TextBlockItem
-                    key={block.id}
-                    id={block.id}
-                    content={block.content}
-                    fontClass={getFontClass()}
-                    onChange={handleTextBlockChange}
-                    onFocus={(id, cursor) => {
-                      setActiveBlockId(id);
-                      setActiveCursorOffset(cursor);
-                      setActiveSelectionRange({ start: cursor, end: cursor });
-                    }}
-                    onCursorChange={(start, end) => {
-                      setActiveCursorOffset(start);
-                      setActiveSelectionRange({ start, end: end !== undefined ? end : start });
-                    }}
-                  />
-                );
-              }
-              if (block.type === "drawing") {
-                return (
-                  <DrawingBlockItem
-                    key={block.id}
-                    blockId={block.id}
-                    drawingId={block.drawingId}
-                    title={block.title}
-                    displayMode={block.displayMode}
-                    onUpdateDrawing={handleUpdateDrawing}
-                    onDeleteBlock={handleDeleteDrawingBlock}
-                    onToggleDisplayMode={handleToggleBlockDisplayMode}
-                    onOpenFullCanvas={onOpenFullCanvas}
-                  />
-                );
-              }
-              return null;
-            })}
-          </div>
+          <EditorBlockList
+            blocks={blocks}
+            activeBlockId={activeBlockId}
+            fontClass={getFontClass()}
+            onBlockChange={handleBlockChange}
+            onBlockFocus={(id) => setActiveBlockId(id)}
+            onCursorChange={(start, end) => {
+              setActiveCursorOffset(start);
+              setActiveSelectionRange({
+                start,
+                end: end !== undefined ? end : start,
+              });
+            }}
+            onDeleteBlock={handleDeleteBlock}
+            onUpdateDrawing={handleUpdateDrawing}
+            onOpenFullCanvas={onOpenFullCanvas}
+            onToggleDisplayMode={handleToggleBlockDisplayMode}
+            onAddBlock={handleInsertCustomBlock}
+          />
         )}
 
         {/* Divider in split mode */}
@@ -1370,7 +950,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           onSelectTemplate={handleApplyTemplate}
         />
       )}
-
     </div>
   );
 };
