@@ -193,5 +193,87 @@ describe("Productivity Block Plugins & Slash Command Block Insertion", () => {
       expect(derived).toContain("| Fix lists | High |");
     });
   });
+
+  describe("Embedded Drawing Preview & Vector Stroke Rendering", () => {
+    it("should compute overall bounding box across multiple strokes", async () => {
+      const { getOverallBoundingBox } = await import("../src/utils/drawingRender");
+      const strokes = [
+        {
+          id: "s1",
+          tool: "pen" as const,
+          color: "#0284c7",
+          width: 4,
+          points: [
+            { x: 10, y: 20 },
+            { x: 100, y: 150 },
+          ],
+        },
+        {
+          id: "s2",
+          tool: "rectangle" as const,
+          color: "#ef4444",
+          width: 2,
+          points: [
+            { x: 50, y: 60 },
+            { x: 200, y: 180 },
+          ],
+        },
+      ];
+
+      const box = getOverallBoundingBox(strokes);
+      expect(box.minX).toBe(10);
+      expect(box.minY).toBe(20);
+      expect(box.maxX).toBe(200);
+      expect(box.maxY).toBe(180);
+      expect(box.width).toBe(190);
+      expect(box.height).toBe(160);
+    });
+
+    it("should execute renderAllStrokes onto mock 2D context with quadratic bezier curves", async () => {
+      const { renderAllStrokes } = await import("../src/utils/drawingRender");
+      const quadraticCurveToSpy = vi.fn();
+      const lineToSpy = vi.fn();
+      const moveToSpy = vi.fn();
+
+      const mockCtx = {
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: moveToSpy,
+        lineTo: lineToSpy,
+        quadraticCurveTo: quadraticCurveToSpy,
+        stroke: vi.fn(),
+        fill: vi.fn(),
+        translate: vi.fn(),
+        scale: vi.fn(),
+        clearRect: vi.fn(),
+        lineCap: "round",
+        lineJoin: "round",
+        lineWidth: 1,
+        strokeStyle: "#000",
+        fillStyle: "#000",
+        globalCompositeOperation: "source-over",
+      } as unknown as CanvasRenderingContext2D;
+
+      const smoothStroke = {
+        id: "smooth_1",
+        tool: "pen" as const,
+        color: "#0284c7",
+        width: 4,
+        points: [
+          { x: 10, y: 10 },
+          { x: 30, y: 40 },
+          { x: 60, y: 80 },
+          { x: 90, y: 120 },
+        ],
+      };
+
+      renderAllStrokes(mockCtx, [smoothStroke], 400, 300);
+
+      expect(moveToSpy).toHaveBeenCalled();
+      expect(quadraticCurveToSpy).toHaveBeenCalled();
+      expect(lineToSpy).toHaveBeenCalled();
+    });
+  });
 });
 

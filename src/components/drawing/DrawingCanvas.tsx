@@ -12,6 +12,7 @@ import {
   computeResizedBox,
   getHandleCursor,
 } from "../../utils/drawingGeometry";
+import { renderDrawingStroke } from "../../utils/drawingRender";
 
 interface DrawingCanvasProps {
   strokes: DrawingStroke[];
@@ -72,122 +73,9 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   } | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper: Draw an arrowhead
-  const drawArrowhead = (
-    ctx: CanvasRenderingContext2D,
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    width: number
-  ) => {
-    const headLength = Math.max(10, width * 3.5);
-    const angle = Math.atan2(toY - fromY, toX - fromX);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(toX, toY);
-    ctx.lineTo(
-      toX - headLength * Math.cos(angle - Math.PI / 7),
-      toY - headLength * Math.sin(angle - Math.PI / 7)
-    );
-    ctx.lineTo(
-      toX - headLength * Math.cos(angle + Math.PI / 7),
-      toY - headLength * Math.sin(angle + Math.PI / 7)
-    );
-    ctx.closePath();
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.fill();
-    ctx.restore();
-  };
-
   // Helper: Render a single stroke/shape onto context
   const renderStroke = (ctx: CanvasRenderingContext2D, stroke: DrawingStroke) => {
-    ctx.beginPath();
-    ctx.lineWidth = stroke.width;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    if (stroke.tool === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.strokeStyle = "rgba(0,0,0,1)";
-    } else {
-      ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = stroke.color;
-      ctx.fillStyle = stroke.color;
-    }
-
-    if (stroke.tool === "text") {
-      if (stroke.points.length > 0 && stroke.text) {
-        const pt = stroke.points[0];
-        const fontSize = stroke.fontSize || Math.max(14, stroke.width * 3.5);
-        ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-        ctx.textBaseline = "top";
-        ctx.fillText(stroke.text, pt.x, pt.y);
-      }
-      return;
-    }
-
-    if (stroke.points.length === 0) return;
-
-    if (stroke.tool === "pen" || stroke.tool === "eraser") {
-      if (stroke.points.length === 1) {
-        const pt = stroke.points[0];
-        ctx.arc(pt.x, pt.y, stroke.width / 2, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (stroke.points.length === 2) {
-        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-        ctx.lineTo(stroke.points[1].x, stroke.points[1].y);
-        ctx.stroke();
-      } else {
-        // Quadratic Bézier midpoint interpolation for smooth natural handwriting and curves
-        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-        for (let i = 1; i < stroke.points.length - 1; i++) {
-          const pt = stroke.points[i];
-          const next = stroke.points[i + 1];
-          const midX = (pt.x + next.x) / 2;
-          const midY = (pt.y + next.y) / 2;
-          ctx.quadraticCurveTo(pt.x, pt.y, midX, midY);
-        }
-        const last = stroke.points[stroke.points.length - 1];
-        ctx.lineTo(last.x, last.y);
-        ctx.stroke();
-      }
-      return;
-    }
-
-    // Geometric Shapes (start: points[0], end: points[1])
-    if (stroke.points.length >= 2) {
-      const p1 = stroke.points[0];
-      const p2 = stroke.points[stroke.points.length - 1];
-
-      if (stroke.tool === "rectangle") {
-        const x = Math.min(p1.x, p2.x);
-        const y = Math.min(p1.y, p2.y);
-        const w = Math.abs(p2.x - p1.x);
-        const h = Math.abs(p2.y - p1.y);
-        ctx.strokeRect(x, y, w, h);
-      } else if (stroke.tool === "circle") {
-        const rx = Math.abs(p2.x - p1.x) / 2;
-        const ry = Math.abs(p2.y - p1.y) / 2;
-        const cx = Math.min(p1.x, p2.x) + rx;
-        const cy = Math.min(p1.y, p2.y) + ry;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (stroke.tool === "line") {
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-      } else if (stroke.tool === "arrow") {
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-        drawArrowhead(ctx, p1.x, p1.y, p2.x, p2.y, stroke.width);
-      }
-    }
+    renderDrawingStroke(ctx, stroke);
   };
 
   // Helper: Render selection box and handles

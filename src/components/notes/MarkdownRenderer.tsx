@@ -1,13 +1,16 @@
 import React from "react";
 import { CheckSquare, Square, Copy, Sparkles, Lightbulb, AlertTriangle, Quote, Terminal } from "lucide-react";
-import { NoteFontStyle } from "../../types";
+import { NoteFontStyle, Drawing } from "../../types";
 import { getTextColorClass, TextColor } from "../../utils/markdownFormatting";
+import { DrawingPreviewItem } from "../drawing/DrawingPreviewItem";
 
-interface MarkdownRendererProps {
+export interface MarkdownRendererProps {
   content: string;
   fontStyle?: NoteFontStyle;
   onToggleChecklist?: (lineIndex: number, completed: boolean) => void;
   className?: string;
+  drawingsCache?: Record<string, Drawing>;
+  onOpenFullCanvas?: (drawingId: string) => void;
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
@@ -15,6 +18,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   fontStyle = "sans",
   onToggleChecklist,
   className = "",
+  drawingsCache,
+  onOpenFullCanvas,
 }) => {
   const getFontFamilyStyle = () => {
     switch (fontStyle) {
@@ -261,18 +266,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       const drawingId = drawingMatch[1];
       const drawingTitle = drawingMatch[2] || "Embedded Drawing";
       renderedElements.push(
-        <div
-          key={`draw-${i}`}
-          className="my-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between text-xs"
-        >
-          <div className="flex items-center space-x-2">
-            <span className="text-base">🎨</span>
-            <span className="font-semibold text-slate-700 dark:text-slate-200">
-              {drawingTitle}
-            </span>
-          </div>
-          <span className="text-[10px] text-muted-fg font-mono">[{drawingId}]</span>
-        </div>
+        <DrawingPreviewItem
+          key={`draw-${i}-${drawingId}`}
+          drawingId={drawingId}
+          title={drawingTitle}
+          cachedDrawing={drawingsCache?.[drawingId]}
+          onOpenFullCanvas={onOpenFullCanvas}
+        />
       );
       continue;
     }

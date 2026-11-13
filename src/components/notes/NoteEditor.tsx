@@ -83,6 +83,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   }>({ start: 0, end: 0 });
   const [draftRecovery, setDraftRecovery] = useState<NoteDraftRecord | null>(null);
   const [fallbackAlert, setFallbackAlert] = useState<string | null>(null);
+  const [drawingsCache, setDrawingsCache] = useState<Record<string, Drawing>>({});
 
   const saveTimeoutRef = useRef<number | null>(null);
 
@@ -99,6 +100,20 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     if (initialBlocks.length > 0) {
       setActiveBlockId(initialBlocks[0].id);
     }
+
+    // Preload drawings for live preview sync
+    const drawingBlocks = initialBlocks.filter((b) => b.type === "drawing" && (b as any).drawingId);
+    drawingBlocks.forEach(async (b) => {
+      const dId = (b as any).drawingId;
+      try {
+        const d = await drawingsRepository.getById(dId);
+        if (d) {
+          setDrawingsCache((prev) => ({ ...prev, [dId]: d }));
+        }
+      } catch (err) {
+        console.warn("Could not preload drawing for cache:", dId, err);
+      }
+    });
 
     // Check for durable recovery draft in IndexedDB
     draftsRepository.getDraft(note.id).then((draft) => {
@@ -288,6 +303,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     });
     newDrawing.isEmbedded = true;
     newDrawing.parentNoteId = note.id;
+    setDrawingsCache((prev) => ({ ...prev, [newDrawing.id]: newDrawing }));
 
     const topBlock: TextBlock = {
       id: targetBlock.id,
@@ -388,6 +404,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       newBlock
     );
 
+    if (newDrawingToSave) {
+      setDrawingsCache((prev) => ({
+        ...prev,
+        [newDrawingToSave.id]: newDrawingToSave,
+      }));
+    }
+
     setBlocks(nextBlocks);
     setContent(deriveNoteContent(nextBlocks));
     setActiveBlockId(newActiveId);
@@ -403,13 +426,22 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     );
   };
 
-  const handleUpdateDrawing = async (drawingId: string, updatedStrokes: any[]) => {
+  const handleUpdateDrawing = async (
+    drawingId: string,
+    updatedStrokes: any[],
+    thumbnail?: string | null
+  ) => {
     try {
       const existing = await drawingsRepository.getById(drawingId);
       if (existing) {
         const updated = await drawingsRepository.update(drawingId, {
           strokes: updatedStrokes,
+          thumbnail,
         });
+        setDrawingsCache((prev) => ({
+          ...prev,
+          [drawingId]: updated,
+        }));
         triggerAutoSave(
           title,
           blocks,
@@ -975,6 +1007,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               content={content}
               fontStyle={fontStyle}
               className="flex-1"
+              drawingsCache={drawingsCache}
+              onOpenFullCanvas={onOpenFullCanvas}
             />
           </div>
         )}
