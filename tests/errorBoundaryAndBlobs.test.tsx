@@ -87,6 +87,46 @@ describe("Workspace & Block-Level Error Boundaries", () => {
     );
     expect(screen.getByText("Recovered!")).toBeInTheDocument();
   });
+
+  it("supports custom fallback render prop", () => {
+    render(
+      <ErrorBoundary
+        fallback={(err, reset) => (
+          <div>
+            <span>Custom Fallback: {err?.message}</span>
+            <button onClick={reset}>Custom Reset</button>
+          </div>
+        )}
+      >
+        <FaultyComponent shouldThrow={true} message="Custom failure" />
+      </ErrorBoundary>
+    );
+
+    expect(screen.getByText("Custom Fallback: Custom failure")).toBeInTheDocument();
+    expect(screen.getByText("Custom Reset")).toBeInTheDocument();
+  });
+
+  it("copies diagnostic info to clipboard when copy button is clicked", () => {
+    const writeTextSpy = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextSpy,
+      },
+    });
+
+    render(
+      <ErrorBoundary label="Notes Workspace">
+        <FaultyComponent shouldThrow={true} message="Crash info" />
+      </ErrorBoundary>
+    );
+
+    fireEvent.click(screen.getByText("Copy Diagnostic Info"));
+    expect(writeTextSpy).toHaveBeenCalled();
+    const copiedText = writeTextSpy.mock.calls[0][0];
+    expect(copiedText).toContain("DeskNest Error Report");
+    expect(copiedText).toContain("Location: Notes Workspace");
+    expect(copiedText).toContain("Crash info");
+  });
 });
 
 describe("Separate Base64 Audio Blobs in IndexedDB", () => {
@@ -196,6 +236,21 @@ describe("Separate Base64 Audio Blobs in IndexedDB", () => {
 
     await backupRepository.importData(emptyBackup, "overwrite");
     expect(await notesRepository.getAudioBlob("stale_blob")).toBeNull();
+  });
+
+  it("backupRepository.exportAll() includes persisted audio blobs in export archive", async () => {
+    const exportedBlob: AudioBlobRecord = {
+      id: "export_blob_1",
+      noteId: "note_for_export",
+      mimeType: "audio/webm",
+      data: "data:audio/webm;base64,AAA...",
+      createdAt: Date.now(),
+    };
+    await notesRepository.saveAudioBlob(exportedBlob);
+
+    const exportData = await backupRepository.exportAll();
+    expect(exportData.audioBlobs).toBeDefined();
+    expect(exportData.audioBlobs?.some((b) => b.id === "export_blob_1")).toBe(true);
   });
 });
 
