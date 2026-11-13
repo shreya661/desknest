@@ -1,5 +1,19 @@
 import { Note, NoteColor, NoteBlock, Drawing, DrawingBlock, DrawingStroke } from "../types";
-import { dbClear, dbDelete, dbGet, dbGetAll, dbPut, STORES, dbBatchSaveNoteAndDrawings, dbAtomicNoteDelete } from "./db";
+import {
+  dbClear,
+  dbDelete,
+  dbGet,
+  dbGetAll,
+  dbPut,
+  STORES,
+  dbBatchSaveNoteAndDrawings,
+  dbAtomicNoteDelete,
+  AudioBlobRecord,
+  saveAudioBlob,
+  getAudioBlob,
+  deleteAudioBlob,
+  getAudioBlobsByNoteId,
+} from "./db";
 import { deriveNoteContent } from "../utils/blockSplitting";
 import { drawingsRepository } from "./drawingsRepository";
 import { draftsRepository } from "./draftsRepository";
@@ -107,7 +121,18 @@ export const notesRepository = {
   },
 
   async list(): Promise<Note[]> {
-    const notes = await dbGetAll<Note>(STORES.NOTES);
+    const rawNotes = await dbGetAll<Note>(STORES.NOTES);
+    // Strip multi-megabyte inline audioData from notes in list() if present from legacy notes
+    const notes = rawNotes.map((n) => {
+      if (Array.isArray(n.voiceRecordings) && n.voiceRecordings.some((r) => r.audioData)) {
+        return {
+          ...n,
+          voiceRecordings: n.voiceRecordings.map(({ audioData: _dropped, ...rest }) => rest),
+        };
+      }
+      return n;
+    });
+
     // Sort pinned first, then by updatedAt descending
     return notes.sort((a, b) => {
       if (a.isPinned !== b.isPinned) {
@@ -255,8 +280,38 @@ export const notesRepository = {
       await dbDelete(STORES.NOTES, id);
     }
 
+    // Cascade delete any audio blobs associated with this note
+    try {
+      const blobs = await getAudioBlobsByNoteId(id);
+      for (const blob of blobs) {
+        await deleteAudioBlob(blob.id);
+      }
+    } catch (err) {
+      console.warn("Could not cascade delete audio blobs for note:", id, err);
+    }
+
     // Clean up any remaining recovery drafts for this note
     await draftsRepository.removeDraft(id);
+  },
+
+  /** Saves an audio blob to the separate audio_blobs store */
+  async saveAudioBlob(blob: AudioBlobRecord): Promise<void> {
+    return saveAudioBlob(blob);
+  },
+
+  /** Retrieves an audio blob by id (matching VoiceRecording.id) */
+  async getAudioBlob(id: string): Promise<AudioBlobRecord | null> {
+    return getAudioBlob(id);
+  },
+
+  /** Deletes an audio blob by id */
+  async deleteAudioBlob(id: string): Promise<void> {
+    return deleteAudioBlob(id);
+  },
+
+  /** Retrieves all audio blobs belonging to a specific note */
+  async getAudioBlobsByNoteId(noteId: string): Promise<AudioBlobRecord[]> {
+    return getAudioBlobsByNoteId(noteId);
   },
 
   async search(query: string): Promise<Note[]> {

@@ -7,6 +7,7 @@ import { settingsRepository } from "./settingsRepository";
 import { notificationsRepository } from "./notificationsRepository";
 import {
   dbPut,
+  dbClear,
   STORES,
   AudioBlobRecord,
   getAllAudioBlobs,
@@ -127,6 +128,7 @@ export const backupRepository = {
         remindersRepository.clear(),
         drawingsRepository.clear(),
         notificationsRepository.clear(),
+        dbClear(STORES.AUDIO_BLOBS),
       ]);
     }
 

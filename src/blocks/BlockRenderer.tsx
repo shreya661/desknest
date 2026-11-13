@@ -5,6 +5,7 @@ import {
   getBlockData,
   updateBlockData,
 } from "./blockRegistry";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { AlertCircle, Trash2 } from "lucide-react";
 
 interface BlockRendererProps {
@@ -53,17 +54,19 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
   return (
     <div data-block-id={block.id} className="w-full relative group/block">
-      {plugin.renderBlock({
-        blockId: block.id,
-        data,
-        isFocused,
-        onChange: (nextData) => {
-          onChange(updateBlockData(block, nextData));
-        },
-        onSplit,
-        onDelete,
-        onFocus,
-      })}
+      <ErrorBoundary compact label={plugin.label || block.type}>
+        {plugin.renderBlock({
+          blockId: block.id,
+          data,
+          isFocused,
+          onChange: (nextData) => {
+            onChange(updateBlockData(block, nextData));
+          },
+          onSplit,
+          onDelete,
+          onFocus,
+        })}
+      </ErrorBoundary>
     </div>
   );
 };

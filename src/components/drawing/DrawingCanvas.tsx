@@ -135,12 +135,22 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         const pt = stroke.points[0];
         ctx.arc(pt.x, pt.y, stroke.width / 2, 0, Math.PI * 2);
         ctx.fill();
-      } else {
+      } else if (stroke.points.length === 2) {
         ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-        for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[1].x, stroke.points[1].y);
+        ctx.stroke();
+      } else {
+        // Quadratic Bézier midpoint interpolation for smooth natural handwriting and curves
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length - 1; i++) {
           const pt = stroke.points[i];
-          ctx.lineTo(pt.x, pt.y);
+          const next = stroke.points[i + 1];
+          const midX = (pt.x + next.x) / 2;
+          const midY = (pt.y + next.y) / 2;
+          ctx.quadraticCurveTo(pt.x, pt.y, midX, midY);
         }
+        const last = stroke.points[stroke.points.length - 1];
+        ctx.lineTo(last.x, last.y);
         ctx.stroke();
       }
       return;

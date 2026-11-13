@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Note, Task, Reminder, ApplicationSettings, WorkspaceType } from "./types";
 import { notesRepository } from "./repositories/notesRepository";
 import { tasksRepository } from "./repositories/tasksRepository";
@@ -11,18 +11,45 @@ import { WindowTitleBar } from "./components/window/WindowTitleBar";
 import { NavigationRail } from "./components/navigation/NavigationRail";
 import { HomeDashboard } from "./components/home/HomeDashboard";
 import { NotesWorkspace } from "./components/notes/NotesWorkspace";
-import { DrawingWorkspace } from "./components/drawing/DrawingWorkspace";
-import { TasksWorkspace } from "./components/tasks/TasksWorkspace";
-import { RemindersWorkspace } from "./components/reminders/RemindersWorkspace";
-import { SearchWorkspace } from "./components/search/SearchWorkspace";
-import { SettingsWorkspace } from "./components/settings/SettingsWorkspace";
 import { Toast, ToastItem } from "./components/common/Toast";
-import { FocusAmbientWidget } from "./components/focus/FocusAmbientWidget";
-import { VoiceRecorderModal } from "./components/notes/VoiceRecorderModal";
-import { NoteTemplatesModal, NoteTemplate } from "./components/notes/NoteTemplatesModal";
-import { CommandPaletteModal } from "./components/CommandPaletteModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { saveAudioBlob } from "./repositories/db";
+import type { NoteTemplate } from "./components/notes/NoteTemplatesModal";
+
+// Lazy-load secondary workspaces and heavy modals to optimize initial bundle size
+const DrawingWorkspace = lazy(() =>
+  import("./components/drawing/DrawingWorkspace").then((m) => ({ default: m.DrawingWorkspace }))
+);
+const TasksWorkspace = lazy(() =>
+  import("./components/tasks/TasksWorkspace").then((m) => ({ default: m.TasksWorkspace }))
+);
+const RemindersWorkspace = lazy(() =>
+  import("./components/reminders/RemindersWorkspace").then((m) => ({ default: m.RemindersWorkspace }))
+);
+const SearchWorkspace = lazy(() =>
+  import("./components/search/SearchWorkspace").then((m) => ({ default: m.SearchWorkspace }))
+);
+const SettingsWorkspace = lazy(() =>
+  import("./components/settings/SettingsWorkspace").then((m) => ({ default: m.SettingsWorkspace }))
+);
+const FocusAmbientWidget = lazy(() =>
+  import("./components/focus/FocusAmbientWidget").then((m) => ({ default: m.FocusAmbientWidget }))
+);
+const VoiceRecorderModal = lazy(() =>
+  import("./components/notes/VoiceRecorderModal").then((m) => ({ default: m.VoiceRecorderModal }))
+);
+const NoteTemplatesModal = lazy(() =>
+  import("./components/notes/NoteTemplatesModal").then((m) => ({ default: m.NoteTemplatesModal }))
+);
+const CommandPaletteModal = lazy(() =>
+  import("./components/CommandPaletteModal").then((m) => ({ default: m.CommandPaletteModal }))
+);
+
+const WorkspaceLoadingFallback = () => (
+  <div className="flex-1 flex items-center justify-center p-8 text-xs text-muted-fg animate-pulse">
+    <span>Loading workspace...</span>
+  </div>
+);
 
 export function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceType>("home");
@@ -380,50 +407,60 @@ export function App() {
 
           {activeWorkspace === "drawing" && (
             <ErrorBoundary label="Sketch Canvas">
-            <DrawingWorkspace
-              initialDrawingId={selectedDrawingId}
-              onOpenNote={(noteId) => {
-                setSelectedNoteId(noteId);
-                setActiveWorkspace("notes");
-              }}
-            />
+              <Suspense fallback={<WorkspaceLoadingFallback />}>
+                <DrawingWorkspace
+                  initialDrawingId={selectedDrawingId}
+                  onOpenNote={(noteId) => {
+                    setSelectedNoteId(noteId);
+                    setActiveWorkspace("notes");
+                  }}
+                />
+              </Suspense>
             </ErrorBoundary>
           )}
 
           {activeWorkspace === "tasks" && (
             <ErrorBoundary label="Tasks Workspace">
-            <TasksWorkspace tasks={tasks} onRefreshTasks={refreshAll} />
+              <Suspense fallback={<WorkspaceLoadingFallback />}>
+                <TasksWorkspace tasks={tasks} onRefreshTasks={refreshAll} />
+              </Suspense>
             </ErrorBoundary>
           )}
 
           {activeWorkspace === "reminders" && (
             <ErrorBoundary label="Reminders Workspace">
-            <RemindersWorkspace
-              reminders={reminders}
-              onRefreshReminders={refreshAll}
-            />
+              <Suspense fallback={<WorkspaceLoadingFallback />}>
+                <RemindersWorkspace
+                  reminders={reminders}
+                  onRefreshReminders={refreshAll}
+                />
+              </Suspense>
             </ErrorBoundary>
           )}
 
           {activeWorkspace === "search" && (
             <ErrorBoundary label="Search Workspace">
-            <SearchWorkspace
-              notes={notes}
-              tasks={tasks}
-              reminders={reminders}
-              onOpenNote={handleOpenNote}
-              onOpenWorkspace={setActiveWorkspace}
-            />
+              <Suspense fallback={<WorkspaceLoadingFallback />}>
+                <SearchWorkspace
+                  notes={notes}
+                  tasks={tasks}
+                  reminders={reminders}
+                  onOpenNote={handleOpenNote}
+                  onOpenWorkspace={setActiveWorkspace}
+                />
+              </Suspense>
             </ErrorBoundary>
           )}
 
           {activeWorkspace === "settings" && (
             <ErrorBoundary label="Settings Workspace">
-            <SettingsWorkspace
-              settings={settings}
-              onUpdateSettings={setSettings}
-              onRefreshAllData={refreshAll}
-            />
+              <Suspense fallback={<WorkspaceLoadingFallback />}>
+                <SettingsWorkspace
+                  settings={settings}
+                  onUpdateSettings={setSettings}
+                  onRefreshAllData={refreshAll}
+                />
+              </Suspense>
             </ErrorBoundary>
           )}
         </main>
@@ -439,59 +476,67 @@ export function App() {
 
       {/* Focus Sanctuary & Ambient Audio Modal */}
       <ErrorBoundary label="Focus Widget">
-      <FocusAmbientWidget
-        isOpen={focusModalOpen}
-        onClose={() => setFocusModalOpen(false)}
-      />
+        <Suspense fallback={null}>
+          <FocusAmbientWidget
+            isOpen={focusModalOpen}
+            onClose={() => setFocusModalOpen(false)}
+          />
+        </Suspense>
       </ErrorBoundary>
 
       {/* Voice Note Recorder & Saver Modal */}
       <ErrorBoundary label="Voice Recorder">
-      <VoiceRecorderModal
-        isOpen={voiceRecorderOpen}
-        onClose={() => setVoiceRecorderOpen(false)}
-        onSaveVoiceNote={handleSaveGlobalVoiceNote}
-      />
+        <Suspense fallback={null}>
+          <VoiceRecorderModal
+            isOpen={voiceRecorderOpen}
+            onClose={() => setVoiceRecorderOpen(false)}
+            onSaveVoiceNote={handleSaveGlobalVoiceNote}
+          />
+        </Suspense>
       </ErrorBoundary>
 
       {/* Note Templates Modal */}
       <ErrorBoundary label="Templates Modal">
-      <NoteTemplatesModal
-        isOpen={templatesModalOpen}
-        onClose={() => setTemplatesModalOpen(false)}
-        onSelectTemplate={handleApplyGlobalTemplate}
-      />
+        <Suspense fallback={null}>
+          <NoteTemplatesModal
+            isOpen={templatesModalOpen}
+            onClose={() => setTemplatesModalOpen(false)}
+            onSelectTemplate={handleApplyGlobalTemplate}
+          />
+        </Suspense>
       </ErrorBoundary>
 
       {/* Global Command Palette (Ctrl+K / Cmd+K) */}
       <ErrorBoundary label="Command Palette">
-      <CommandPaletteModal
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        notes={notes}
-        onOpenNote={handleOpenNote}
-        onSelectWorkspace={setActiveWorkspace}
-        onCreateNewNote={() => {
-          setActiveWorkspace("notes");
-          setSelectedNoteId(null);
-        }}
-        onCreateNewSketch={() => {
-          setSelectedDrawingId(null);
-          setActiveWorkspace("drawing");
-        }}
-        onOpenVoiceRecorder={() => setVoiceRecorderOpen(true)}
-        onShowToast={(title, description) =>
-          setToasts((prev) => [
-            ...prev,
-            {
-              id: "toast_" + Date.now(),
-              reminderId: "cmd",
-              title,
-              description: description || "",
-            },
-          ])
-        }
-      />
+        <Suspense fallback={null}>
+          <CommandPaletteModal
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            notes={notes}
+            onOpenNote={handleOpenNote}
+            onSelectWorkspace={setActiveWorkspace}
+            onCreateNewNote={() => {
+              setActiveWorkspace("notes");
+              setSelectedNoteId(null);
+            }}
+            onCreateNewSketch={() => {
+              setSelectedDrawingId(null);
+              setActiveWorkspace("drawing");
+            }}
+            onOpenVoiceRecorder={() => setVoiceRecorderOpen(true)}
+            onShowToast={(title, description) =>
+              setToasts((prev) => [
+                ...prev,
+                {
+                  id: "toast_" + Date.now(),
+                  reminderId: "cmd",
+                  title,
+                  description: description || "",
+                },
+              ])
+            }
+          />
+        </Suspense>
       </ErrorBoundary>
     </div>
   );

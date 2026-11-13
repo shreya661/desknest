@@ -1,13 +1,19 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCcw, Clipboard } from "lucide-react";
 
-interface ErrorBoundaryProps {
+export interface ErrorBoundaryProps {
   children: ReactNode;
-  /** Descriptive label used in the fallback UI (e.g. "Notes Workspace") */
+  /** Descriptive label used in the fallback UI (e.g. "Notes Workspace" or "Block (Table)") */
   label?: string;
+  /** If true, renders a compact single-line or small card fallback suitable for block-level embeds */
+  compact?: boolean;
+  /** Optional callback fired when the user clicks Try Again / Reset */
+  onReset?: () => void;
+  /** Optional custom fallback component or render function */
+  fallback?: ReactNode | ((error: Error | null, reset: () => void) => ReactNode);
 }
 
-interface ErrorBoundaryState {
+export interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   copied: boolean;
@@ -34,6 +40,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   handleReset = () => {
     this.setState({ hasError: false, error: null, copied: false });
+    this.props.onReset?.();
   };
 
   handleCopy = () => {
@@ -46,10 +53,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       `Stack:\n${error?.stack ?? "(no stack available)"}`,
     ].join("\n\n");
 
-    navigator.clipboard.writeText(text).then(() => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.setState({ copied: true });
+        setTimeout(() => this.setState({ copied: false }), 2500);
+      });
+    } else {
       this.setState({ copied: true });
       setTimeout(() => this.setState({ copied: false }), 2500);
-    });
+    }
   };
 
   render() {
@@ -58,8 +70,78 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     const { error, copied } = this.state;
-    const label = this.props.label ?? "Workspace";
+    const label = this.props.label ?? "Component";
 
+    if (this.props.fallback) {
+      if (typeof this.props.fallback === "function") {
+        return this.props.fallback(error, this.handleReset);
+      }
+      return this.props.fallback;
+    }
+
+    // Compact layout for block-level embedding in EditorBlockList
+    if (this.props.compact) {
+      return (
+        <div
+          className="w-full my-2 p-3 rounded-xl border flex items-center justify-between gap-3 text-xs select-none"
+          style={{
+            backgroundColor: "rgba(239, 68, 68, 0.08)",
+            borderColor: "rgba(239, 68, 68, 0.25)",
+            color: "var(--color-foreground)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+            <AlertTriangle style={{ width: "1rem", height: "1rem", color: "#ef4444", flexShrink: 0 }} />
+            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: 600, color: "#ef4444" }}>
+                {label} error:
+              </span>{" "}
+              <span style={{ color: "var(--color-muted-fg)", fontFamily: "monospace", fontSize: "0.7rem" }}>
+                {error?.message || "Render failure"}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={this.handleCopy}
+              style={{
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.375rem",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                cursor: "pointer",
+                border: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-foreground)",
+              }}
+              title="Copy diagnostic info"
+            >
+              {copied ? "Copied" : "Copy Diagnostic Info"}
+            </button>
+            <button
+              type="button"
+              onClick={this.handleReset}
+              style={{
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.375rem",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+                backgroundColor: "var(--color-primary)",
+                color: "var(--color-primary-fg)",
+              }}
+              title="Try again"
+            >
+              Try Again / Reset
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Full workspace / modal fallback
     return (
       <div
         style={{
@@ -144,6 +226,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         {/* Action buttons */}
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
           <button
+            type="button"
             onClick={this.handleCopy}
             style={{
               display: "flex",
@@ -162,10 +245,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             title="Copy error info to clipboard"
           >
             <Clipboard style={{ width: "0.875rem", height: "0.875rem" }} />
-            {copied ? "Copied!" : "Copy Recovery Info"}
+            {copied ? "Copied!" : "Copy Diagnostic Info"}
           </button>
 
           <button
+            type="button"
             onClick={this.handleReset}
             style={{
               display: "flex",
@@ -181,10 +265,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               color: "var(--color-primary-fg)",
               transition: "opacity 0.15s",
             }}
-            title="Attempt to reload this workspace"
+            title="Attempt to reload this section"
           >
             <RefreshCcw style={{ width: "0.875rem", height: "0.875rem" }} />
-            Reload Workspace
+            Try Again / Reset
           </button>
         </div>
 
