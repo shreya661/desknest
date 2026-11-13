@@ -1,10 +1,90 @@
-import { Note, NoteBlock } from "../types";
+import { Note, NoteBlock, TextBlock } from "../types";
 import { getBlockPlugin, getBlockData } from "../blocks/blockRegistry";
 
 export interface SplitResult {
   topContent: string;
   bottomContent: string;
   fallbackReason?: string;
+}
+
+export interface InsertBlockSplitResult {
+  nextBlocks: NoteBlock[];
+  activeBlockId: string;
+}
+
+/**
+ * Strips the slash command from a text block, splits the remaining text at the slash position,
+ * and inserts the new block in between the top and bottom text segments.
+ */
+export function insertBlockWithSplit(
+  blocks: NoteBlock[],
+  targetBlockId: string,
+  slashIndex: number,
+  cursorOffset: number,
+  newBlock: NoteBlock
+): InsertBlockSplitResult {
+  const targetIndex = blocks.findIndex((b) => b.id === targetBlockId);
+  if (targetIndex === -1) {
+    return {
+      nextBlocks: [...blocks, newBlock],
+      activeBlockId: newBlock.id,
+    };
+  }
+
+  const targetBlock = blocks[targetIndex];
+  if (targetBlock.type !== "text") {
+    const nextBlocks = [
+      ...blocks.slice(0, targetIndex + 1),
+      newBlock,
+      ...blocks.slice(targetIndex + 1),
+    ];
+    return { nextBlocks, activeBlockId: newBlock.id };
+  }
+
+  const fullText = (targetBlock as TextBlock).content || "";
+  const beforeSlash = fullText.slice(0, slashIndex);
+  const afterCursor = fullText.slice(cursorOffset);
+  const remainingText = beforeSlash + afterCursor;
+
+  // Split remaining text at slashIndex
+  const splitResult = splitTextBlockAtCursor(remainingText, slashIndex);
+
+  const topBlock: TextBlock = {
+    id: targetBlock.id,
+    type: "text",
+    content: splitResult.topContent,
+  };
+
+  const hasTop = splitResult.topContent.trim().length > 0;
+  const hasBottom = splitResult.bottomContent.trim().length > 0;
+
+  const insertedSegment: NoteBlock[] = [];
+
+  if (hasTop) {
+    insertedSegment.push(topBlock);
+  }
+
+  insertedSegment.push(newBlock);
+
+  if (hasBottom) {
+    const bottomBlock: TextBlock = {
+      id: "blk_txt_" + Date.now() + "_cont",
+      type: "text",
+      content: splitResult.bottomContent,
+    };
+    insertedSegment.push(bottomBlock);
+  }
+
+  const nextBlocks = [
+    ...blocks.slice(0, targetIndex),
+    ...insertedSegment,
+    ...blocks.slice(targetIndex + 1),
+  ];
+
+  return {
+    nextBlocks,
+    activeBlockId: newBlock.id,
+  };
 }
 
 /**

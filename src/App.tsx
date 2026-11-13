@@ -20,6 +20,7 @@ import { Toast, ToastItem } from "./components/common/Toast";
 import { FocusAmbientWidget } from "./components/focus/FocusAmbientWidget";
 import { VoiceRecorderModal } from "./components/notes/VoiceRecorderModal";
 import { NoteTemplatesModal, NoteTemplate } from "./components/notes/NoteTemplatesModal";
+import { CommandPaletteModal } from "./components/CommandPaletteModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { saveAudioBlob } from "./repositories/db";
 
@@ -36,6 +37,7 @@ export function App() {
   const [focusModalOpen, setFocusModalOpen] = useState(false);
   const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Load all initial data from local persistence
   const refreshAll = useCallback(async () => {
@@ -139,6 +141,13 @@ export function App() {
   useEffect(() => {
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl + K or Cmd + K: Global Command Palette
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
       // Ctrl + Alt + N: New Note
       if (e.ctrlKey && e.altKey && e.code === "KeyN") {
         e.preventDefault();
@@ -451,6 +460,37 @@ export function App() {
         isOpen={templatesModalOpen}
         onClose={() => setTemplatesModalOpen(false)}
         onSelectTemplate={handleApplyGlobalTemplate}
+      />
+      </ErrorBoundary>
+
+      {/* Global Command Palette (Ctrl+K / Cmd+K) */}
+      <ErrorBoundary label="Command Palette">
+      <CommandPaletteModal
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        notes={notes}
+        onOpenNote={handleOpenNote}
+        onSelectWorkspace={setActiveWorkspace}
+        onCreateNewNote={() => {
+          setActiveWorkspace("notes");
+          setSelectedNoteId(null);
+        }}
+        onCreateNewSketch={() => {
+          setSelectedDrawingId(null);
+          setActiveWorkspace("drawing");
+        }}
+        onOpenVoiceRecorder={() => setVoiceRecorderOpen(true)}
+        onShowToast={(title, description) =>
+          setToasts((prev) => [
+            ...prev,
+            {
+              id: "toast_" + Date.now(),
+              reminderId: "cmd",
+              title,
+              description: description || "",
+            },
+          ])
+        }
       />
       </ErrorBoundary>
     </div>

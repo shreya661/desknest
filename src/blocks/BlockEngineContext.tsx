@@ -1,6 +1,14 @@
 import React, { createContext, useContext } from "react";
 import { DrawingStroke } from "../types";
 
+export interface SlashCommandState {
+  blockId: string;
+  query: string;
+  slashIndex: number;
+  cursorOffset: number;
+  position: { top: number; left: number };
+}
+
 export interface BlockEngineContextValue {
   fontClass?: string;
   isReadOnly?: boolean;
@@ -12,6 +20,15 @@ export interface BlockEngineContextValue {
   ) => void;
   onOpenFullCanvas?: (drawingId: string) => void;
   onToggleDisplayMode?: (blockId: string) => void;
+  // Slash command integration
+  slashCommandState?: SlashCommandState | null;
+  onOpenSlashCommand?: (state: SlashCommandState) => void;
+  onCloseSlashCommand?: () => void;
+  onUpdateSlashQuery?: (query: string, cursorOffset: number) => void;
+  onSelectSlashCommand?: (
+    pluginType: string,
+    targetState: SlashCommandState
+  ) => void;
 }
 
 const BlockEngineContext = createContext<BlockEngineContextValue>({});

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { NoteBlock, DrawingStroke } from "../../../types";
 import { BlockRenderer } from "../../../blocks/BlockRenderer";
-import { BlockEngineProvider } from "../../../blocks/BlockEngineContext";
+import { BlockEngineProvider, SlashCommandState, BlockEngineContextValue } from "../../../blocks/BlockEngineContext";
 import { getAllBlockPlugins } from "../../../blocks/blockRegistry";
+import { SlashCommandMenu } from "./SlashCommandMenu";
 import { Plus } from "lucide-react";
 
 export interface EditorBlockListProps {
@@ -22,6 +23,7 @@ export interface EditorBlockListProps {
   onOpenFullCanvas?: (drawingId: string) => void;
   onToggleDisplayMode?: (blockId: string) => void;
   onAddBlock?: (type: string) => void;
+  onSelectSlashCommand?: (pluginType: string, state: SlashCommandState) => void;
 }
 
 export const EditorBlockList: React.FC<EditorBlockListProps> = ({
@@ -37,21 +39,38 @@ export const EditorBlockList: React.FC<EditorBlockListProps> = ({
   onOpenFullCanvas,
   onToggleDisplayMode,
   onAddBlock,
+  onSelectSlashCommand,
 }) => {
-  const contextValue = {
+  const [slashCommandState, setSlashCommandState] = useState<SlashCommandState | null>(null);
+
+  const contextValue: BlockEngineContextValue = {
     fontClass,
     isReadOnly,
     onCursorChange,
     onUpdateDrawing,
     onOpenFullCanvas,
     onToggleDisplayMode,
+    slashCommandState,
+    onOpenSlashCommand: setSlashCommandState,
+    onCloseSlashCommand: () => setSlashCommandState(null),
+    onUpdateSlashQuery: (query, cursorOffset) => {
+      setSlashCommandState((prev) =>
+        prev ? { ...prev, query, cursorOffset } : null
+      );
+    },
+    onSelectSlashCommand: (pluginType, targetState) => {
+      setSlashCommandState(null);
+      if (onSelectSlashCommand) {
+        onSelectSlashCommand(pluginType, targetState);
+      }
+    },
   };
 
   const availablePlugins = getAllBlockPlugins();
 
   return (
     <BlockEngineProvider value={contextValue}>
-      <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 relative">
         {blocks.map((block) => (
           <BlockRenderer
             key={block.id}
@@ -62,6 +81,20 @@ export const EditorBlockList: React.FC<EditorBlockListProps> = ({
             onDelete={() => onDeleteBlock(block.id)}
           />
         ))}
+
+        {/* Floating Slash Command Menu */}
+        {slashCommandState && (
+          <SlashCommandMenu
+            state={slashCommandState}
+            onSelect={(pluginType, targetState) => {
+              setSlashCommandState(null);
+              if (onSelectSlashCommand) {
+                onSelectSlashCommand(pluginType, targetState);
+              }
+            }}
+            onClose={() => setSlashCommandState(null)}
+          />
+        )}
 
         {/* Add Block Footer Button */}
         {!isReadOnly && onAddBlock && (
@@ -87,3 +120,4 @@ export const EditorBlockList: React.FC<EditorBlockListProps> = ({
     </BlockEngineProvider>
   );
 };
+

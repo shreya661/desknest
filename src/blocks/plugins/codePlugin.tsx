@@ -109,3 +109,4 @@ export const codeBlockPlugin: DeskNestBlockPlugin<CodeBlockData> = {
     `\`\`\`${data?.language || ""}\n${data?.code || ""}\n\`\`\``,
   renderBlock: (props) => <CodeBlockComponent {...props} />,
 };
+

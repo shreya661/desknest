@@ -120,3 +120,4 @@ export const calloutBlockPlugin: DeskNestBlockPlugin<CalloutBlockData> = {
     `> 📌 **${(data?.variant || "NOTE").toUpperCase()}**\n> ${data?.text || ""}`,
   renderBlock: (props) => <CalloutBlockComponent {...props} />,
 };
+

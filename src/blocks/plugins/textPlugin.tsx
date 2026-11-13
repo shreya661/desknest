@@ -47,3 +47,4 @@ export const textBlockPlugin: DeskNestBlockPlugin<TextBlockData> = {
   toPlainText: (data) => data?.content || "",
   renderBlock: (props) => <TextBlockPluginComponent {...props} />,
 };
+

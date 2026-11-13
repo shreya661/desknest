@@ -282,6 +282,64 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     const indentLevel = Math.min(6, Math.floor(indentSpaces / 2));
     const indentPadding = `${indentLevel * 16 + 8}px`;
 
+    // GFM Tables: lines starting and ending with |
+    if (trimmed.startsWith("|") && trimmed.endsWith("|") && i + 1 < lines.length) {
+      const nextLineTrimmed = lines[i + 1].trim();
+      // Verify separator row: e.g. | --- | --- | or |:---|---:|
+      if (/^\|(\s*:?-+:?\s*\|)+$/.test(nextLineTrimmed)) {
+        const parseRow = (line: string) => {
+          const cells = line.trim().split("|");
+          return cells.slice(1, -1).map((c) => c.trim());
+        };
+
+        const headers = parseRow(trimmed);
+        const dataRows: string[][] = [];
+        let j = i + 2;
+
+        while (
+          j < lines.length &&
+          lines[j].trim().startsWith("|") &&
+          lines[j].trim().endsWith("|")
+        ) {
+          dataRows.push(parseRow(lines[j]));
+          j++;
+        }
+
+        renderedElements.push(
+          <div
+            key={`table-${i}`}
+            className="my-3 overflow-x-auto rounded-xl border border-border bg-surface-elevated shadow-xs"
+          >
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr>
+                  {headers.map((h, colIdx) => (
+                    <th key={colIdx} className="p-2 font-semibold text-foreground">
+                      {renderInlineFormatted(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {dataRows.map((row, rIdx) => (
+                  <tr key={rIdx} className="hover:bg-muted/10 transition-colors">
+                    {headers.map((_, cIdx) => (
+                      <td key={cIdx} className="p-2 text-foreground/90">
+                        {renderInlineFormatted(row[cIdx] || "")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+        i = j - 1;
+        continue;
+      }
+    }
+
     // Heading 1: #
     if (trimmed.startsWith("# ")) {
       renderedElements.push(

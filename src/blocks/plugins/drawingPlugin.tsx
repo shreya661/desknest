@@ -69,3 +69,4 @@ export const drawingBlockPlugin: DeskNestBlockPlugin<DrawingBlockData> = {
   },
   renderBlock: (props) => <DrawingBlockPluginComponent {...props} />,
 };
+

@@ -4,6 +4,7 @@ import {
   handleEditorTab,
   handleEditorBackspace,
 } from "../../../utils/listContinuation";
+import { useBlockEngineContext } from "../../../blocks/BlockEngineContext";
 
 interface TextBlockItemProps {
   id: string;
@@ -31,6 +32,8 @@ export const TextBlockItem: React.FC<TextBlockItemProps> = ({
   autoFocus = false,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { slashCommandState, onOpenSlashCommand, onCloseSlashCommand } =
+    useBlockEngineContext();
 
   // Auto-resize textarea to fit content without scrollbars
   const autoResize = () => {
@@ -51,14 +54,59 @@ export const TextBlockItem: React.FC<TextBlockItemProps> = ({
     }
   }, [autoFocus]);
 
+  const checkSlashTrigger = (el: HTMLTextAreaElement) => {
+    if (isReadOnly) return;
+    const { selectionStart, selectionEnd, value } = el;
+    if (selectionStart !== selectionEnd) {
+      if (slashCommandState?.blockId === id) {
+        onCloseSlashCommand?.();
+      }
+      return;
+    }
+
+    const textBefore = value.slice(0, selectionStart);
+    const match = textBefore.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
+
+    if (match) {
+      const matchOffset = textBefore.length - match[0].length;
+      const slashOffsetInMatch = match[0].indexOf("/");
+      const slashIndex = matchOffset + slashOffsetInMatch;
+      const query = match[1];
+
+      const rect = el.getBoundingClientRect();
+      const lineCount = textBefore.split("\n").length - 1;
+      const lineHeight = 22;
+      const position = {
+        top: rect.top + Math.min(rect.height, (lineCount + 1) * lineHeight),
+        left: Math.min(rect.left + 16, window.innerWidth - 300),
+      };
+
+      onOpenSlashCommand?.({
+        blockId: id,
+        query,
+        slashIndex,
+        cursorOffset: selectionStart,
+        position,
+      });
+    } else {
+      if (slashCommandState?.blockId === id) {
+        onCloseSlashCommand?.();
+      }
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(id, e.target.value);
     onCursorChange(e.target.selectionStart || 0, e.target.selectionEnd || 0);
+    checkSlashTrigger(e.target);
   };
 
   const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
     onCursorChange(target.selectionStart || 0, target.selectionEnd || 0);
+    if (slashCommandState?.blockId === id) {
+      checkSlashTrigger(target);
+    }
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -69,6 +117,16 @@ export const TextBlockItem: React.FC<TextBlockItemProps> = ({
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const el = textareaRef.current;
     if (!el) return;
+
+    // If slash command is active for this block, intercept navigation keys
+    if (
+      slashCommandState &&
+      slashCommandState.blockId === id &&
+      ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(e.key)
+    ) {
+      e.preventDefault();
+      return;
+    }
 
     // Smart Enter list continuation
     if (e.key === "Enter" && !e.shiftKey) {

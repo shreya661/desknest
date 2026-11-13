@@ -18,7 +18,9 @@ import {
   ensureNoteBlocks,
   deriveNoteContent,
   splitTextBlockAtCursor,
+  insertBlockWithSplit,
 } from "../../utils/blockSplitting";
+import { SlashCommandState } from "../../blocks/BlockEngineContext";
 import { evaluateDraftFreshness } from "../../utils/draftFreshness";
 import { soundEffects } from "../../services/soundEffectsService";
 import {
@@ -346,6 +348,59 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setContent(deriveNoteContent(nextBlocks));
     setActiveBlockId(newBlock.id);
     triggerAutoSave(title, nextBlocks, color, isPinned, voiceRecordings, fontStyle);
+  };
+
+  // Keyboard-first Slash Command block insertion with split
+  const handleSelectSlashCommand = async (
+    pluginType: string,
+    targetState: SlashCommandState
+  ) => {
+    soundEffects.playPop();
+
+    let newBlock: NoteBlock;
+    let newDrawingToSave: any = undefined;
+
+    if (pluginType === "drawing") {
+      const newDrawing = await drawingsRepository.create({
+        title: "Sketch " + (blocks.filter((b) => b.type === "drawing").length + 1),
+        strokes: [],
+      });
+      newDrawing.isEmbedded = true;
+      newDrawing.parentNoteId = note.id;
+      newDrawingToSave = newDrawing;
+
+      newBlock = {
+        id: "blk_draw_" + Date.now(),
+        type: "drawing",
+        drawingId: newDrawing.id,
+        title: newDrawing.title,
+        displayMode: "inline",
+      };
+    } else {
+      newBlock = createBlockInstance(pluginType) as NoteBlock;
+    }
+
+    const { nextBlocks, activeBlockId: newActiveId } = insertBlockWithSplit(
+      blocks,
+      targetState.blockId,
+      targetState.slashIndex,
+      targetState.cursorOffset,
+      newBlock
+    );
+
+    setBlocks(nextBlocks);
+    setContent(deriveNoteContent(nextBlocks));
+    setActiveBlockId(newActiveId);
+
+    triggerAutoSave(
+      title,
+      nextBlocks,
+      color,
+      isPinned,
+      voiceRecordings,
+      fontStyle,
+      newDrawingToSave ? [newDrawingToSave] : undefined
+    );
   };
 
   const handleUpdateDrawing = async (drawingId: string, updatedStrokes: any[]) => {
@@ -904,6 +959,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             onOpenFullCanvas={onOpenFullCanvas}
             onToggleDisplayMode={handleToggleBlockDisplayMode}
             onAddBlock={handleInsertCustomBlock}
+            onSelectSlashCommand={handleSelectSlashCommand}
           />
         )}
 
