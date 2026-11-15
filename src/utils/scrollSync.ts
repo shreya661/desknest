@@ -29,3 +29,4 @@ export function calculateSynchronizedScrollTop(
   const scrollRatio = Math.max(0, Math.min(1, sourceScrollTop / maxSourceScroll));
   return Math.round(scrollRatio * maxTargetScroll);
 }
+

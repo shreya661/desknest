@@ -379,18 +379,16 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                       type="button"
                       onClick={item.onSelect}
                       onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors ${
-                        isSelected
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-foreground hover:bg-muted/40"
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors ${isSelected
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-foreground hover:bg-muted/40"
+                        }`}
                     >
                       <div
-                        className={`p-1.5 rounded-lg flex-shrink-0 ${
-                          isSelected
-                            ? "bg-primary-foreground/20 text-primary-foreground"
-                            : "bg-primary/10 text-primary"
-                        }`}
+                        className={`p-1.5 rounded-lg flex-shrink-0 ${isSelected
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-primary/10 text-primary"
+                          }`}
                       >
                         <Icon className="w-4 h-4" />
                       </div>
@@ -402,22 +400,20 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                           </span>
                           {item.badge && (
                             <span
-                              className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-medium ${
-                                isSelected
-                                  ? "bg-primary-foreground/20 text-primary-foreground"
-                                  : "bg-muted text-muted-fg"
-                              }`}
+                              className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-medium ${isSelected
+                                ? "bg-primary-foreground/20 text-primary-foreground"
+                                : "bg-muted text-muted-fg"
+                                }`}
                             >
                               {item.badge}
                             </span>
                           )}
                           {item.shortcut && (
                             <span
-                              className={`text-[10px] font-mono px-1 py-0.2 rounded ${
-                                isSelected
-                                  ? "bg-primary-foreground/20 text-primary-foreground"
-                                  : "bg-muted text-muted-fg"
-                              }`}
+                              className={`text-[10px] font-mono px-1 py-0.2 rounded ${isSelected
+                                ? "bg-primary-foreground/20 text-primary-foreground"
+                                : "bg-muted text-muted-fg"
+                                }`}
                             >
                               {item.shortcut}
                             </span>
@@ -425,11 +421,10 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                         </div>
                         {item.subtitle && (
                           <p
-                            className={`text-[11px] truncate mt-0.5 ${
-                              isSelected
-                                ? "text-primary-foreground/80"
-                                : "text-muted-fg"
-                            }`}
+                            className={`text-[11px] truncate mt-0.5 ${isSelected
+                              ? "text-primary-foreground/80"
+                              : "text-muted-fg"
+                              }`}
                           >
                             {item.subtitle}
                           </p>

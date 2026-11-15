@@ -26,6 +26,21 @@ class NotificationService {
     return () => this.listeners.delete(listener);
   }
 
+  public dispatchToast(toast: {
+    id: string;
+    reminderId: string;
+    title: string;
+    description: string;
+  }): void {
+    for (const listener of this.listeners) {
+      try {
+        listener(toast);
+      } catch {
+        // safe error boundary
+      }
+    }
+  }
+
   public playChime() {
     if (!this.soundEnabled) return;
     try {

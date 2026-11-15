@@ -73,4 +73,40 @@ describe("Notes Repository", () => {
     const fetched = await notesRepository.getById(note.id);
     expect(fetched).toBeNull();
   });
+
+  it("projects lightweight summaries without loading full block trees (PERF-02)", async () => {
+    await notesRepository.create({
+      title: "Architecture Doc",
+      content: "# Heading\nDetailed summary text for test.",
+      color: "lavender",
+      isPinned: true,
+    });
+
+    const summaries = await notesRepository.listSummaries();
+    expect(summaries.length).toBe(1);
+    expect(summaries[0].title).toBe("Architecture Doc");
+    expect(summaries[0].color).toBe("lavender");
+    expect(summaries[0].isPinned).toBe(true);
+    expect(summaries[0].contentPreview).toContain("Heading Detailed summary text");
+    expect(summaries[0].hasDrawings).toBe(false);
+  });
+
+  it("paginates notes with limit, offset, and total count (PERF-02)", async () => {
+    for (let i = 1; i <= 5; i++) {
+      await notesRepository.create({ title: `Note ${i}`, content: `Body ${i}` });
+    }
+
+    const page1 = await notesRepository.listPaginated({ limit: 2, offset: 0 });
+    expect(page1.items.length).toBe(2);
+    expect(page1.total).toBe(5);
+    expect(page1.hasMore).toBe(true);
+
+    const page2 = await notesRepository.listPaginated({ limit: 2, offset: 2 });
+    expect(page2.items.length).toBe(2);
+    expect(page2.hasMore).toBe(true);
+
+    const page3 = await notesRepository.listPaginated({ limit: 2, offset: 4 });
+    expect(page3.items.length).toBe(1);
+    expect(page3.hasMore).toBe(false);
+  });
 });

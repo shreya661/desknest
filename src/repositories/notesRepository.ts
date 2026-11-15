@@ -18,6 +18,34 @@ import { deriveNoteContent } from "../utils/blockSplitting";
 import { drawingsRepository } from "./drawingsRepository";
 import { draftsRepository } from "./draftsRepository";
 
+export interface PaginationOptions {
+  limit?: number;
+  offset?: number;
+  includeArchived?: boolean;
+}
+
+export interface NoteSummary {
+  id: string;
+  title: string;
+  contentPreview: string;
+  color: NoteColor;
+  isPinned: boolean;
+  fontStyle?: string;
+  hasAudio: boolean;
+  hasDrawings: boolean;
+  blocksCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 export const notesRepository = {
   /**
    * Idempotently reconciles standalone drawings in STORES.DRAWINGS into unified
@@ -140,6 +168,61 @@ export const notesRepository = {
       }
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
+  },
+
+  /**
+   * Retrieves lightweight note summaries without parsing large block trees.
+   * Optimized for fast app boot and search indexing (PERF-02).
+   */
+  async listSummaries(): Promise<NoteSummary[]> {
+    const rawNotes = await this.list();
+    return rawNotes.map((note) => {
+      const hasAudio =
+        (Array.isArray(note.voiceRecordings) && note.voiceRecordings.length > 0) || false;
+      const hasDrawings =
+        Array.isArray(note.blocks) &&
+        note.blocks.some((b) => b.type === "drawing" || (b as any).drawingId);
+      const cleanPreview = (note.content || "")
+        .replace(/^[#\-*>\s]+/gm, "")
+        .slice(0, 120)
+        .replace(/\n+/g, " ")
+        .trim();
+
+      return {
+        id: note.id,
+        title: note.title,
+        contentPreview: cleanPreview,
+        color: note.color,
+        isPinned: note.isPinned,
+        fontStyle: note.fontStyle,
+        hasAudio,
+        hasDrawings,
+        blocksCount: note.blocks?.length || 0,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+      };
+    });
+  },
+
+  /**
+   * Cursor-based pagination on notes with offset and limit (PERF-02).
+   * Supports huge libraries without loading all notes into memory at once.
+   */
+  async listPaginated(options: PaginationOptions = {}): Promise<PaginatedResult<Note>> {
+    const limit = Math.max(1, options.limit ?? 20);
+    const offset = Math.max(0, options.offset ?? 0);
+
+    const allNotes = await this.list();
+    const total = allNotes.length;
+    const items = allNotes.slice(offset, offset + limit);
+
+    return {
+      items,
+      total,
+      limit,
+      offset,
+      hasMore: offset + items.length < total,
+    };
   },
 
   async getById(id: string): Promise<Note | null> {

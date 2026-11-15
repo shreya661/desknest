@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState, useEffect, useCallback, memo } from "react";
 import { Bell, X, Clock, Check } from "lucide-react";
 import { Button } from "./Button";
+import { notificationService } from "../../services/notificationService";
+import { remindersRepository } from "../../repositories/remindersRepository";
 
 export interface ToastItem {
   id: string;
@@ -79,3 +81,54 @@ export const Toast: React.FC<ToastProps> = ({
     </div>
   );
 };
+
+export interface ToastContainerProps {
+  onRefreshAll?: () => void;
+}
+
+/**
+ * Isolated Toast Notification Controller (PERF-01).
+ * Subscribes to notification events independently so 10-second background
+ * reminder ticks and dismissals do not trigger re-renders in the main App workspace tree.
+ */
+export const ToastContainer: React.FC<ToastContainerProps> = memo(({ onRefreshAll }) => {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = notificationService.subscribe((toast) => {
+      setToasts((prev) => [...prev, toast]);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleDismiss = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const handleSnooze = useCallback(
+    async (reminderId: string, toastId: string, minutes: number) => {
+      await remindersRepository.snooze(reminderId, minutes);
+      handleDismiss(toastId);
+      if (onRefreshAll) onRefreshAll();
+    },
+    [handleDismiss, onRefreshAll]
+  );
+
+  const handleComplete = useCallback(
+    async (reminderId: string, toastId: string) => {
+      await remindersRepository.complete(reminderId);
+      handleDismiss(toastId);
+      if (onRefreshAll) onRefreshAll();
+    },
+    [handleDismiss, onRefreshAll]
+  );
+
+  return (
+    <Toast
+      toasts={toasts}
+      onDismiss={handleDismiss}
+      onSnooze={handleSnooze}
+      onComplete={handleComplete}
+    />
+  );
+});

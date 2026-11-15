@@ -16,7 +16,7 @@ interface NotesWorkspaceProps {
   onOpenFullCanvas?: (drawingId: string) => void;
 }
 
-export const NotesWorkspace: React.FC<NotesWorkspaceProps> = ({
+export const NotesWorkspace: React.FC<NotesWorkspaceProps> = React.memo(({
   notes,
   selectedNoteId,
   onSelectNote,
@@ -255,4 +255,4 @@ export const NotesWorkspace: React.FC<NotesWorkspaceProps> = ({
       />
     </div>
   );
-};
+});

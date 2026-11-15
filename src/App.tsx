@@ -11,7 +11,7 @@ import { WindowTitleBar } from "./components/window/WindowTitleBar";
 import { NavigationRail } from "./components/navigation/NavigationRail";
 import { HomeDashboard } from "./components/home/HomeDashboard";
 import { NotesWorkspace } from "./components/notes/NotesWorkspace";
-import { Toast, ToastItem } from "./components/common/Toast";
+import { ToastContainer } from "./components/common/Toast";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { saveAudioBlob } from "./repositories/db";
 import type { NoteTemplate } from "./components/notes/NoteTemplatesModal";
@@ -60,7 +60,6 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [settings, setSettings] = useState<ApplicationSettings>(DEFAULT_SETTINGS);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [focusModalOpen, setFocusModalOpen] = useState(false);
   const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
@@ -125,34 +124,25 @@ export function App() {
     soundEffects.setEnabled(settings.notificationSound);
   }, [settings.notificationSound]);
 
-  // Start background reminder scheduler & in-app toast listener
+  // Start background reminder scheduler (isolated from root re-renders - PERF-01)
   useEffect(() => {
     notificationService.startScheduler();
-
-    const unsubscribe = notificationService.subscribe((toast) => {
-      setToasts((prev) => [...prev, toast]);
-    });
-
     return () => {
       notificationService.stopScheduler();
-      unsubscribe();
     };
   }, []);
 
-  // Safe window close protection: flushes pending saves before exiting (Refinement 1)
+  // Safe window close protection: flushes pending saves before exiting
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     windowService
       .registerCloseProtection((errorMsg) => {
-        setToasts((prev) => [
-          ...prev,
-          {
-            id: "close_err_" + Date.now(),
-            reminderId: "close_err",
-            title: "Save Failed on Exit",
-            description: errorMsg,
-          },
-        ]);
+        notificationService.dispatchToast({
+          id: "close_err_" + Date.now(),
+          reminderId: "close_err",
+          title: "Save Failed on Exit",
+          description: errorMsg,
+        });
       })
       .then((cleanup) => {
         unlisten = cleanup;
@@ -233,10 +223,10 @@ export function App() {
     setSettings(updated);
   };
 
-  const handleOpenNote = (id: string) => {
+  const handleOpenNote = useCallback((id: string) => {
     setSelectedNoteId(id);
     setActiveWorkspace("notes");
-  };
+  }, []);
 
   const handleSaveGlobalVoiceNote = async (
     audioData: string,
@@ -303,23 +293,6 @@ export function App() {
     });
     refreshAll();
     handleOpenNote(created.id);
-  };
-
-  // Toast banner interactions
-  const handleDismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  const handleSnoozeToast = async (reminderId: string, toastId: string, minutes: number) => {
-    await remindersRepository.snooze(reminderId, minutes);
-    handleDismissToast(toastId);
-    refreshAll();
-  };
-
-  const handleCompleteToast = async (reminderId: string, toastId: string) => {
-    await remindersRepository.complete(reminderId);
-    handleDismissToast(toastId);
-    refreshAll();
   };
 
   const pendingTasksCount = tasks.filter((t) => t.status === "pending").length;
@@ -466,13 +439,8 @@ export function App() {
         </main>
       </div>
 
-      {/* In-App Toast Alert Center */}
-      <Toast
-        toasts={toasts}
-        onDismiss={handleDismissToast}
-        onSnooze={handleSnoozeToast}
-        onComplete={handleCompleteToast}
-      />
+      {/* In-App Toast Alert Center - Isolated from root re-renders (PERF-01) */}
+      <ToastContainer onRefreshAll={refreshAll} />
 
       {/* Focus Sanctuary & Ambient Audio Modal */}
       <ErrorBoundary label="Focus Widget">
@@ -525,15 +493,12 @@ export function App() {
             }}
             onOpenVoiceRecorder={() => setVoiceRecorderOpen(true)}
             onShowToast={(title, description) =>
-              setToasts((prev) => [
-                ...prev,
-                {
-                  id: "toast_" + Date.now(),
-                  reminderId: "cmd",
-                  title,
-                  description: description || "",
-                },
-              ])
+              notificationService.dispatchToast({
+                id: "toast_" + Date.now(),
+                reminderId: "cmd",
+                title,
+                description: description || "",
+              })
             }
           />
         </Suspense>

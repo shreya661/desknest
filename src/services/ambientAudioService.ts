@@ -72,6 +72,22 @@ class AmbientAudioService {
     }
   }
 
+  /**
+   * Completely tears down all active audio nodes, clears scheduled intervals,
+   * and cleanly closes the underlying AudioContext (PERF / Resource Cleanup).
+   */
+  public async dispose(): Promise<void> {
+    this.stop();
+    if (this.ctx && this.ctx.state !== "closed") {
+      try {
+        await this.ctx.close();
+      } catch {
+        // ignore
+      }
+      this.ctx = null;
+    }
+  }
+
   public play(type: SoundscapeType) {
     this.stop();
     this.initContext();
@@ -166,6 +182,16 @@ class AmbientAudioService {
         dropFilter.connect(dropGain);
         dropGain.connect(this.masterGain);
 
+        osc.onended = () => {
+          try {
+            osc.disconnect();
+            dropFilter.disconnect();
+            dropGain.disconnect();
+          } catch {
+            // ignore
+          }
+        };
+
         osc.start();
         osc.stop(this.ctx.currentTime + 0.05);
       } catch {
@@ -251,6 +277,16 @@ class AmbientAudioService {
 
           osc.connect(pGain);
           pGain.connect(this.masterGain);
+
+          osc.onended = () => {
+            try {
+              osc.disconnect();
+              pGain.disconnect();
+            } catch {
+              // ignore
+            }
+          };
+
           osc.start();
           osc.stop(this.ctx.currentTime + 0.04);
         } catch {

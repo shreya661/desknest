@@ -170,4 +170,17 @@ describe("Audio Capture & Processing Utilities", () => {
       expect(textOnly).toBe("Hello and welcome.\n\nGlad to be here.");
     });
   });
+
+  describe("5. Ambient Audio Service Lifecycle & Teardown", () => {
+    it("disposes cleanly and reports idle status", async () => {
+      const { ambientAudioService } = await import("../src/services/ambientAudioService");
+      expect(ambientAudioService.getStatus().isPlaying).toBe(false);
+
+      ambientAudioService.stop();
+      await ambientAudioService.dispose();
+
+      expect(ambientAudioService.getStatus().isPlaying).toBe(false);
+      expect(ambientAudioService.getStatus().type).toBeNull();
+    });
+  });
 });
