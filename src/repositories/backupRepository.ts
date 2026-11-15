@@ -6,6 +6,11 @@ import { drawingsRepository } from "./drawingsRepository";
 import { settingsRepository } from "./settingsRepository";
 import { notificationsRepository } from "./notificationsRepository";
 import {
+  encryptData,
+  decryptData,
+  isEncryptedEnvelope,
+} from "../services/vaultCryptoService";
+import {
   dbPut,
   dbClear,
   STORES,
@@ -26,6 +31,7 @@ export interface ValidationResult {
     audioBlobs: number;
   };
   data?: BackupData;
+  isEncrypted?: boolean;
 }
 
 export const backupRepository = {
@@ -57,6 +63,77 @@ export const backupRepository = {
     return backup;
   },
 
+  /**
+   * Exports the entire workspace encrypted with the user's master passphrase (SEC-03).
+   * Returns a JSON-stringified EncryptedEnvelope containing AES-256-GCM ciphertext.
+   */
+  async exportEncrypted(passphrase: string, iterations?: number): Promise<string> {
+    const rawData = await this.exportAll();
+    const envelope = await encryptData<BackupData>(rawData, passphrase, undefined, iterations);
+    return JSON.stringify(envelope, null, 2);
+  },
+
+  /**
+   * Checks whether a JSON backup string is an encrypted vault envelope.
+   */
+  isEncryptedBackup(jsonString: string): boolean {
+    try {
+      const parsed = JSON.parse(jsonString);
+      return isEncryptedEnvelope(parsed);
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Decrypts an encrypted backup string using the user's master passphrase.
+   */
+  async decryptBackup(encryptedJsonString: string, passphrase: string): Promise<BackupData> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(encryptedJsonString);
+    } catch {
+      throw new Error("Invalid backup format: file is not valid JSON");
+    }
+
+    if (!isEncryptedEnvelope(parsed)) {
+      throw new Error("Payload is not an encrypted backup envelope");
+    }
+
+    return decryptData<BackupData>(parsed, passphrase);
+  },
+
+  /**
+   * Asynchronously validates either a plaintext backup JSON or an encrypted backup
+   * (decrypting with passphrase if supplied).
+   */
+  async validateAsync(jsonString: string, passphrase?: string): Promise<ValidationResult> {
+    if (this.isEncryptedBackup(jsonString)) {
+      if (!passphrase) {
+        return {
+          valid: false,
+          isEncrypted: true,
+          errors: ["Backup file is encrypted. Master passphrase required."],
+          counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0, audioBlobs: 0 },
+        };
+      }
+      try {
+        const decrypted = await this.decryptBackup(jsonString, passphrase);
+        const res = this.validate(JSON.stringify(decrypted));
+        return { ...res, isEncrypted: true, data: decrypted };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Decryption failed: Incorrect passphrase";
+        return {
+          valid: false,
+          isEncrypted: true,
+          errors: [message],
+          counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0, audioBlobs: 0 },
+        };
+      }
+    }
+    return this.validate(jsonString);
+  },
+
   validate(jsonString: string): ValidationResult {
     const errors: string[] = [];
     let parsed: unknown;
@@ -67,6 +144,16 @@ export const backupRepository = {
       return {
         valid: false,
         errors: ["Invalid JSON format: file could not be parsed"],
+        counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0, audioBlobs: 0 },
+      };
+    }
+
+    // Detect encrypted backup envelope (SEC-03)
+    if (isEncryptedEnvelope(parsed)) {
+      return {
+        valid: false,
+        isEncrypted: true,
+        errors: ["Backup file is encrypted. Enter your master passphrase to decrypt and inspect."],
         counts: { notes: 0, tasks: 0, reminders: 0, drawings: 0, notifications: 0, audioBlobs: 0 },
       };
     }
@@ -227,5 +314,23 @@ export const backupRepository = {
 
     // Idempotently adapt any standalone drawings into the unified notebook system
     await notesRepository.syncStandaloneDrawingsToNotes();
+  },
+
+  /**
+   * Imports an encrypted backup JSON file directly with a user passphrase.
+   */
+  async importEncrypted(
+    encryptedJsonString: string,
+    passphrase: string,
+    mode: "merge" | "overwrite"
+  ): Promise<void> {
+    const data = await this.decryptBackup(encryptedJsonString, passphrase);
+    const validation = this.validate(JSON.stringify(data));
+    if (!validation.valid || !validation.data) {
+      throw new Error(
+        "Decrypted backup failed validation: " + validation.errors.join(", ")
+      );
+    }
+    await this.importData(validation.data, mode);
   },
 };
