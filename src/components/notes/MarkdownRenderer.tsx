@@ -260,9 +260,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       flushCallout(`${i}`);
     }
 
-    // Embedded Drawing Block: ![drawing:id](title)
-    const drawingMatch = trimmed.match(/^!\[drawing:([^\]]+)\](?:\(([^)]*)\))?$/);
-    if (drawingMatch) {
+    // Embedded Drawing Block: ![drawing:id](title) or [drawing:id] or [draw_id]
+    const drawingMatch = trimmed.match(/^!?\[(?:drawing:)?(draw_[a-zA-Z0-9_-]+|[^\]]+)\](?:\(([^)]*)\))?$/);
+    const isDrawingToken =
+      drawingMatch &&
+      (trimmed.includes("drawing:") || drawingMatch[1].startsWith("draw_"));
+
+    if (isDrawingToken && drawingMatch) {
       const drawingId = drawingMatch[1];
       const drawingTitle = drawingMatch[2] || "Embedded Drawing";
       renderedElements.push(

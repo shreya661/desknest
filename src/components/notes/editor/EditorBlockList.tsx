@@ -11,6 +11,8 @@ export interface EditorBlockListProps {
   activeBlockId: string | null;
   fontClass: string;
   isReadOnly?: boolean;
+  scrollContainerRef?: React.Ref<HTMLDivElement>;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
   onBlockChange: (updatedBlock: NoteBlock) => void;
   onBlockFocus: (blockId: string) => void;
   onCursorChange: (cursorStart: number, cursorEnd?: number) => void;
@@ -31,6 +33,8 @@ export const EditorBlockList: React.FC<EditorBlockListProps> = ({
   activeBlockId,
   fontClass,
   isReadOnly = false,
+  scrollContainerRef,
+  onScroll,
   onBlockChange,
   onBlockFocus,
   onCursorChange,
@@ -70,7 +74,11 @@ export const EditorBlockList: React.FC<EditorBlockListProps> = ({
 
   return (
     <BlockEngineProvider value={contextValue}>
-      <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 relative">
+      <div
+        ref={scrollContainerRef}
+        onScroll={onScroll}
+        className="flex-1 flex flex-col h-full overflow-y-auto pr-1 relative"
+      >
         {blocks.map((block) => (
           <BlockRenderer
             key={block.id}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import {
   X,
   Users,
@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { soundEffects } from "../../services/soundEffectsService";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 export interface NoteTemplate {
   id: string;
@@ -179,19 +180,31 @@ export const NoteTemplatesModal: React.FC<NoteTemplatesModalProps> = ({
   onClose,
   onSelectTemplate,
 }) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, modalRef, onClose);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="templates-title"
+    >
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="bg-surface border border-border rounded-2xl w-full max-w-[calc(100vw-24px)] sm:max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-32px)] focus:outline-none"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/40">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-3.5 border-b border-border bg-muted/40">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-foreground">Note Templates</h3>
+              <h3 id="templates-title" className="font-semibold text-sm text-foreground">Note Templates</h3>
               <p className="text-[11px] text-muted-fg">Start with a structured, beautifully formatted layout</p>
             </div>
           </div>

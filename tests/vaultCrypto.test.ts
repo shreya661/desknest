@@ -309,3 +309,4 @@ describe("Zero-Knowledge Vault Cryptographic Engine (SEC-01 & SEC-03)", () => {
     });
   });
 });
+

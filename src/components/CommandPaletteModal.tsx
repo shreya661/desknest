@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Note, WorkspaceType } from "../types";
 import { ambientAudioService } from "../services/ambientAudioService";
 import { soundEffects } from "../services/soundEffectsService";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   Search,
   FilePlus,
@@ -305,15 +306,23 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     }
   };
 
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, modalRef, onClose);
+
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-6 sm:pt-16 px-3 sm:px-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command Palette"
     >
       <div
-        className="w-full max-w-xl bg-surface-elevated border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[75vh] animate-in zoom-in-95 duration-100"
+        ref={modalRef}
+        tabIndex={-1}
+        className="w-full max-w-[calc(100vw-24px)] sm:max-w-xl bg-surface-elevated border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-32px)] sm:max-h-[75vh] animate-in zoom-in-95 duration-100 focus:outline-none"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >

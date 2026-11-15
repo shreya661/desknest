@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   X,
   Share2,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Note } from "../../types";
 import { soundEffects } from "../../services/soundEffectsService";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface ShareNoteModalProps {
   note: Note;
@@ -25,6 +26,8 @@ export const ShareNoteModal: React.FC<ShareNoteModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, modalRef, onClose);
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -203,16 +206,25 @@ export const ShareNoteModal: React.FC<ShareNoteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-title"
+    >
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="bg-surface border border-border rounded-2xl w-full max-w-[calc(100vw-24px)] sm:max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-32px)] focus:outline-none"
+      >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/40">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-3.5 border-b border-border bg-muted/40">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-sky-500/15 text-sky-500">
               <Share2 className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-foreground">Share & Export Note</h3>
+              <h3 id="share-title" className="font-semibold text-sm text-foreground">Share & Export Note</h3>
               <p className="text-[11px] text-muted-fg">Export, copy, or share with any application</p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Note,
   NoteColor,
@@ -23,6 +23,7 @@ import {
 import { SlashCommandState } from "../../blocks/BlockEngineContext";
 import { evaluateDraftFreshness } from "../../utils/draftFreshness";
 import { soundEffects } from "../../services/soundEffectsService";
+import { calculateSynchronizedScrollTop } from "../../utils/scrollSync";
 import {
   toggleInlineMarker,
   applyTextColor,
@@ -84,6 +85,54 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [draftRecovery, setDraftRecovery] = useState<NoteDraftRecord | null>(null);
   const [fallbackAlert, setFallbackAlert] = useState<string | null>(null);
   const [drawingsCache, setDrawingsCache] = useState<Record<string, Drawing>>({});
+
+  // Split-view bidirectional proportional scroll synchronization (UI-01)
+  const editorScrollRef = useRef<HTMLDivElement>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingFromEditor = useRef(false);
+  const isSyncingFromPreview = useRef(false);
+
+  const handleEditorScroll = useCallback(() => {
+    if (viewMode !== "split" || isSyncingFromPreview.current) return;
+    const editor = editorScrollRef.current;
+    const preview = previewScrollRef.current;
+    if (!editor || !preview) return;
+
+    isSyncingFromEditor.current = true;
+    const nextTop = calculateSynchronizedScrollTop(
+      editor.scrollTop,
+      editor.scrollHeight,
+      editor.clientHeight,
+      preview.scrollHeight,
+      preview.clientHeight
+    );
+    preview.scrollTop = nextTop;
+
+    requestAnimationFrame(() => {
+      isSyncingFromEditor.current = false;
+    });
+  }, [viewMode]);
+
+  const handlePreviewScroll = useCallback(() => {
+    if (viewMode !== "split" || isSyncingFromEditor.current) return;
+    const editor = editorScrollRef.current;
+    const preview = previewScrollRef.current;
+    if (!editor || !preview) return;
+
+    isSyncingFromPreview.current = true;
+    const nextTop = calculateSynchronizedScrollTop(
+      preview.scrollTop,
+      preview.scrollHeight,
+      preview.clientHeight,
+      editor.scrollHeight,
+      editor.clientHeight
+    );
+    editor.scrollTop = nextTop;
+
+    requestAnimationFrame(() => {
+      isSyncingFromPreview.current = false;
+    });
+  }, [viewMode]);
 
   const saveTimeoutRef = useRef<number | null>(null);
 
@@ -977,6 +1026,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             blocks={blocks}
             activeBlockId={activeBlockId}
             fontClass={getFontClass()}
+            scrollContainerRef={editorScrollRef}
+            onScroll={handleEditorScroll}
             onBlockChange={handleBlockChange}
             onBlockFocus={(id) => setActiveBlockId(id)}
             onCursorChange={(start, end) => {
@@ -1002,7 +1053,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
         {/* Live Formatted Markdown Preview Pane (shown in 'preview' or 'split') */}
         {(viewMode === "preview" || viewMode === "split") && (
-          <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1">
+          <div
+            ref={previewScrollRef}
+            onScroll={handlePreviewScroll}
+            className="flex-1 flex flex-col h-full overflow-y-auto pr-1"
+          >
             <MarkdownRenderer
               content={content}
               fontStyle={fontStyle}
